@@ -1024,10 +1024,31 @@ func (pA *TK) GetVar(nameA string) interface{} {
 	if !ok {
 		GenerateErrorString("no key")
 	}
+
 	return rs
 }
 
 var GetVar = TKX.GetVar
+
+func (pA *TK) GetVarEx(nameA string, argsA ...interface{}) interface{} {
+	var defaultT interface{} = nil
+
+	if len(argsA) > 0 {
+		defaultT = argsA[0]
+	}
+
+	varMutexG.Lock()
+	rs, ok := variableG[nameA]
+	varMutexG.Unlock()
+
+	if !ok {
+		return defaultT
+	}
+
+	return rs
+}
+
+var GetVarEx = TKX.GetVarEx
 
 func (pA *TK) SetVar(nameA string, valueA interface{}) {
 	varMutexG.Lock()
@@ -19276,6 +19297,12 @@ func (pA *TK) IsNil(v interface{}) bool {
 		return true
 	}
 
+	_, ok := v.(string)
+
+	if ok {
+		return false
+	}
+
 	tmps := fmt.Sprintf("%v", v)
 
 	if tmps == "<nil>" {
@@ -19372,6 +19399,24 @@ func (pA *TK) TrimSafely(vA interface{}, defaultA ...string) string {
 }
 
 var TrimSafely = TKX.TrimSafely
+
+func (pA *TK) TrimEx(vA interface{}, argsA ...string) string {
+	if vA == nil {
+		return ""
+	}
+
+	if vA == Undefined {
+		return ""
+	}
+
+	if nv, ok := vA.(string); ok {
+		return Trim(nv, argsA...)
+	}
+
+	return Trim(fmt.Sprintf("%v", vA), argsA...)
+}
+
+var TrimEx = TKX.TrimEx
 
 func (pA *TK) IsError(vA interface{}) bool {
 	if vA == nil {
