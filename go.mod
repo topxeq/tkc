@@ -27,7 +27,7 @@ require (
 	github.com/yuin/goldmark v1.7.2
 	github.com/yuin/goldmark-highlighting v0.0.0-20220208100518-594be1970594
 	golang.org/x/crypto v0.24.0
-	golang.org/x/image v0.17.0
+	golang.org/x/image v0.18.0
 	golang.org/x/net v0.26.0
 	golang.org/x/term v0.21.0
 )
