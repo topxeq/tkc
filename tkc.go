@@ -28323,3 +28323,9 @@ func (pA *TK) GenerateOtpCode(secretA string, optsA ...string) string {
 }
 
 var GenerateOtpCode = TKX.GenerateOtpCode
+
+func (pA *TK) ValidateOtpCode(passCodeA string, secretA string, optsA ...string) bool {
+	return totp.Validate(passCodeA, secretA)
+}
+
+var ValidateOtpCode = TKX.ValidateOtpCode
