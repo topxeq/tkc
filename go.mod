@@ -16,6 +16,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mozillazg/go-pinyin v0.20.0
+	github.com/pquerna/otp v1.4.0
 	github.com/topxeq/gods v0.0.0-20220125023913-b5718bb0c704
 	github.com/topxeq/goph v0.0.0-20230116054750-120b087d86fb
 	github.com/topxeq/mahonia v0.0.0-20190828060648-12b0599ddd1a

@@ -111,6 +111,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/mailru/easyjson/jwriter"
+
+	"github.com/pquerna/otp/totp"
 )
 
 var VersionG = "v1.0.1"
@@ -28291,3 +28293,33 @@ func GetTextSimilarity(str1A string, str2A string, methodA ...int) float64 {
 
 	return CalTextSimilarity(str1A, str2A)
 }
+
+// otp related
+
+func (pA *TK) GenerateOtpCode(secretA string, optsA ...string) string {
+	if len(optsA) < 1 {
+		s1, errT := totp.GenerateCode(secretA, time.Now())
+
+		if errT != nil {
+			return ErrorToString(errT)
+		}
+
+		return s1
+	}
+
+	timeT := ToTime(optsA[0])
+
+	if IsErrX(timeT) {
+		return "TXERROR:" + GetErrStrX(timeT)
+	}
+
+	s1, errT := totp.GenerateCode(secretA, timeT.(time.Time))
+
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+
+	return s1
+}
+
+var GenerateOtpCode = TKX.GenerateOtpCode
