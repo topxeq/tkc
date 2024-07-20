@@ -6801,6 +6801,53 @@ func (pA *TK) GetInputf(formatA string, aA ...interface{}) string {
 
 var GetInputf = TKX.GetInputf
 
+func (pA *TK) GetInput(argsA ...string) string {
+	prefixT := GetSwitch(argsA, "-prompt=", "")
+
+	if prefixT != "" {
+		fmt.Print(prefixT)
+	}
+
+	// var stdinBufferedReaderT *bufio.Reader
+	var stdinBufferedScannerT *bufio.Scanner
+
+	stdinBufferedScannerT = bufio.NewScanner(os.Stdin)
+
+	// defaultT := GetSwitch(argsA, "-default=", "")
+
+	// if defaultT != "" {
+	// 	stdinBufferedScannerT.Buffer([]byte(defaultT), bufio.MaxScanTokenSize)
+	// }
+
+	if stdinBufferedScannerT.Scan() {
+		rStrT := stdinBufferedScannerT.Text()
+
+		errT := stdinBufferedScannerT.Err()
+		if errT != nil {
+			if errT == io.EOF {
+				return GenerateErrorStringF("EOF", rStrT)
+			}
+
+			return GenerateErrorStringF(errT.Error())
+		}
+
+		return rStrT
+	}
+
+	errT := stdinBufferedScannerT.Err()
+	if errT != nil {
+		if errT == io.EOF {
+			return GenerateErrorStringF("EOF", stdinBufferedScanner.Text())
+		}
+
+		return GenerateErrorStringF(errT.Error())
+	}
+
+	return GenerateErrorStringF("EOF")
+}
+
+var GetInput = TKX.GetInput
+
 var stdinBufferedReader *bufio.Reader
 var stdinBufferedScanner *bufio.Scanner
 
