@@ -28207,8 +28207,8 @@ func (pA *TK) NewImage(argsA ...string) image.Image {
 
 	colorT := color.NRGBA{uint8(r), uint8(g), uint8(b), uint8(a)}
 
-	for x := 0; x < heightT; x++ {
-		for y := 0; y < widthT; y++ {
+	for x := 0; x < widthT; x++ {
+		for y := 0; y < heightT; y++ {
 			imgT.Set(x, y, colorT)
 		}
 	}
