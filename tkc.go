@@ -26612,28 +26612,30 @@ func (pA *TK) LoadImageFromFile(pathA string, argsA ...string) interface{} {
 
 	extT := strings.ToLower(filepath.Ext(pathA))
 
-	typeT := GetSwitch(argsA, "-type=", extT)
+	typeT := strings.TrimSpace(GetSwitch(argsA, "-type=", extT))
+
+	typeT = strings.Trim(typeT, ".")
 
 	switch typeT {
-	case "", ".jpg", ".jpeg":
+	case "", "jpg", "jpeg":
 		imgT, errT = jpeg.Decode(readerT)
 
 		if errT != nil {
 			return errT
 		}
-	case ".png":
+	case "png":
 		imgT, errT = png.Decode(readerT)
 
 		if errT != nil {
 			return errT
 		}
-	case ".gif":
+	case "gif":
 		imgT, errT = gif.Decode(readerT)
 
 		if errT != nil {
 			return errT
 		}
-	case ".bmp":
+	case "bmp":
 		imgT, errT = bmp.Decode(readerT)
 
 		if errT != nil {
@@ -26663,14 +26665,16 @@ func (p *TK) SaveImageToFile(imageA image.Image, filePathA string, formatA ...st
 		formatT = strings.ToLower(formatA[0])
 	}
 
+	formatT = strings.Trim(formatT, ".")
+
 	switch formatT {
-	case "", ".png":
+	case "", "png":
 		errT = png.Encode(fileT, imageA)
-	case ".jpg", ".jpeg":
+	case "jpg", "jpeg":
 		errT = jpeg.Encode(fileT, imageA, nil)
-	case ".gif":
+	case "gif":
 		errT = gif.Encode(fileT, imageA, nil)
-	case ".bmp":
+	case "bmp":
 		errT = bmp.Encode(fileT, imageA)
 	default:
 		errT = png.Encode(fileT, imageA)
@@ -26694,14 +26698,16 @@ func (p *TK) SaveImageToBytes(imageA image.Image, formatA ...string) []byte {
 		formatT = strings.ToLower(formatA[0])
 	}
 
+	formatT = strings.Trim(formatT, ".")
+
 	switch formatT {
-	case "", ".png":
+	case "", "png":
 		errT = png.Encode(bufT, imageA)
-	case ".jpg", ".jpeg":
+	case "jpg", "jpeg":
 		errT = jpeg.Encode(bufT, imageA, nil)
-	case ".gif":
+	case "gif":
 		errT = gif.Encode(bufT, imageA, nil)
-	case ".bmp":
+	case "bmp":
 		errT = bmp.Encode(bufT, imageA)
 	default:
 		errT = png.Encode(bufT, imageA)
