@@ -23186,6 +23186,8 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		// }
 
 		return NewImage(AnyArrayToStringArray(argsA[1:])...)
+	case "memfile":
+		return NewMemFile(nil)
 	case "tk":
 		return NewTK()
 	}
@@ -28382,3 +28384,152 @@ func (pA *TK) ValidateOtpCode(passCodeA string, secretA string, optsA ...string)
 }
 
 var ValidateOtpCode = TKX.ValidateOtpCode
+
+// memory file, conform to os.File
+type MemFile struct {
+	m sync.Mutex
+	b []byte
+	i int
+}
+
+// New creates and initializes a new MemFile using b as its initial contents.
+// The new File takes ownership of b.
+func NewMemFile(b []byte) *MemFile {
+	return &MemFile{b: b}
+}
+
+// Read reads up to len(b) bytes from the MemFile.
+// It returns the number of bytes read and any error encountered.
+// At end of file, Read returns (0, io.EOF).
+func (fb *MemFile) Read(b []byte) (int, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+
+	n, err := fb.readAt(b, int64(fb.i))
+	fb.i += n
+	return n, err
+}
+
+func (fb *MemFile) ReadAll() ([]byte, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+
+	return fb.b, nil
+}
+
+// ReadAt reads len(b) bytes from the MemFile starting at byte offset.
+// It returns the number of bytes read and the error, if any.
+// At end of file, that error is io.EOF.
+func (fb *MemFile) ReadAt(b []byte, offset int64) (int, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+	return fb.readAt(b, offset)
+}
+func (fb *MemFile) readAt(b []byte, off int64) (int, error) {
+	if off < 0 || int64(int(off)) < off {
+		return 0, errors.New("invalid argument")
+	}
+	if off > int64(len(fb.b)) {
+		return 0, io.EOF
+	}
+	n := copy(b, fb.b[off:])
+	if n < len(b) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+// Write writes len(b) bytes to the MemFile.
+// It returns the number of bytes written and an error, if any.
+// If the current file offset is past the io.EOF, then the space in-between are
+// implicitly filled with zero bytes.
+func (fb *MemFile) Write(b []byte) (int, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+
+	n, err := fb.writeAt(b, int64(fb.i))
+	fb.i += n
+	return n, err
+}
+
+// WriteAt writes len(b) bytes to the MemFile starting at byte offset.
+// It returns the number of bytes written and an error, if any.
+// If offset lies past io.EOF, then the space in-between are implicitly filled
+// with zero bytes.
+func (fb *MemFile) WriteAt(b []byte, offset int64) (int, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+	return fb.writeAt(b, offset)
+}
+func (fb *MemFile) writeAt(b []byte, off int64) (int, error) {
+	if off < 0 || int64(int(off)) < off {
+		return 0, errors.New("invalid argument")
+	}
+	if off > int64(len(fb.b)) {
+		fb.truncate(off)
+	}
+	n := copy(fb.b[off:], b)
+	fb.b = append(fb.b, b[n:]...)
+	return len(b), nil
+}
+
+// Seek sets the offset for the next Read or Write on file with offset,
+// interpreted according to whence: 0 means relative to the origin of the file,
+// 1 means relative to the current offset, and 2 means relative to the end.
+func (fb *MemFile) Seek(offset int64, whence int) (int64, error) {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+
+	var abs int64
+	switch whence {
+	case io.SeekStart:
+		abs = offset
+	case io.SeekCurrent:
+		abs = int64(fb.i) + offset
+	case io.SeekEnd:
+		abs = int64(len(fb.b)) + offset
+	default:
+		return 0, errors.New("invalid argument")
+	}
+	if abs < 0 {
+		return 0, errors.New("invalid argument")
+	}
+	fb.i = int(abs)
+	return abs, nil
+}
+
+// Truncate changes the size of the file. It does not change the I/O offset.
+func (fb *MemFile) Truncate(n int64) error {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+	return fb.truncate(n)
+}
+func (fb *MemFile) truncate(n int64) error {
+	switch {
+	case n < 0 || int64(int(n)) < n:
+		return errors.New("invalid argument")
+	case n <= int64(len(fb.b)):
+		fb.b = fb.b[:n]
+		return nil
+	default:
+		fb.b = append(fb.b, make([]byte, int(n)-len(fb.b))...)
+		return nil
+	}
+}
+
+func (fb *MemFile) Close() error {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+
+	fb.b = nil
+
+	return nil
+}
+
+// Bytes returns the full contents of the MemFile.
+// The result in only valid until the next Write, WriteAt, or Truncate call.
+func (fb *MemFile) Bytes() []byte {
+	fb.m.Lock()
+	defer fb.m.Unlock()
+	return fb.b
+}
