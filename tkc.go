@@ -13903,6 +13903,18 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 			}
 
 			if (encodingT == "") || (strings.ToLower(encodingT) == "utf-8") {
+				if IfSwitchExistsWholeI(optsA, "-object") {
+					var rs interface{}
+
+					errT := jsoniter.Unmarshal(body, &rs)
+
+					if errT != nil {
+						return fmt.Errorf("failed to parse JSON object: %v", errT)
+					}
+
+					return rs
+				}
+
 				return string(body)
 			} else {
 				return ConvertToUTF8(body, encodingT)
