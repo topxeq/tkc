@@ -18037,6 +18037,7 @@ func (pA *TK) RenderMarkdown(markdownA string) string {
 		goldmark.WithRendererOptions(
 			mdhtml.WithHardWraps(),
 			mdhtml.WithXHTML(),
+			mdhtml.WithUnsafe(),
 		),
 	)
 
