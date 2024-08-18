@@ -6991,6 +6991,18 @@ func (pA *TK) GetApplicationPath() string {
 
 var GetApplicationPath = TKX.GetApplicationPath
 
+func (pA *TK) GetExecutablePath() string {
+	pathT, errT := os.Executable()
+
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+
+	return pathT
+}
+
+var GetExecutablePath = TKX.GetExecutablePath
+
 func (pA *TK) GetFileAbs(fileA string) string {
 	pathT, errT := filepath.Abs(fileA)
 
@@ -14448,7 +14460,15 @@ func (pA *TK) DownloadBytesWithProgress(urlA string, funcA func(interface{}) int
 
 	defer respT.Body.Close()
 
-	countingWriterT := NewCountingWriter(funcA)
+	lengthT := 0
+
+	tmps := strings.TrimSpace(respT.Header.Get("Content-Length"))
+
+	if tmps != "" {
+		lengthT = StrToIntWithDefaultValue(tmps, 0)
+	}
+
+	countingWriterT := NewCountingWriter(funcA, "-percent", fmt.Sprintf("-total=%v", lengthT))
 
 	teeReaderT := io.TeeReader(respT.Body, countingWriterT)
 
@@ -22328,6 +22348,7 @@ type CountingWriter struct {
 	Count      int
 	Total      int
 	IfPercent  bool
+	IfRaw      bool
 	WritebackI *int
 	WritebackS *string
 	WritebackA *interface{}
@@ -22389,6 +22410,16 @@ func NewCountingWriter(argsA ...interface{}) io.Writer {
 		vT.IfPercent = true
 	}
 
+	if IfSwitchExistsWhole(argsT, "-raw") {
+		vT.IfRaw = true
+	}
+
+	totalT := GetSwitch(argsT, "-total=", "")
+
+	if totalT != "" {
+		vT.Total = StrToIntWithDefaultValue(totalT, 0)
+	}
+
 	return vT // &CountingWriter{Lock: lockA, Writeback: writebackA, WritebackI: writebackIA, Callback: callbackA, Count: 0}
 }
 
@@ -22423,14 +22454,18 @@ func (pA *CountingWriter) Write(p []byte) (n int, err error) {
 
 	var infoT string
 
+	percentT := ""
+
 	if pA.IfPercent {
-		if pA.Total >= 0 {
-			infoT = fmt.Sprintf("%v%%", pA.Count*100/pA.Total)
-		} else {
-			infoT = "-%"
+		if pA.Total > 0 {
+			percentT = fmt.Sprintf("(%v%%)", pA.Count*100/pA.Total)
 		}
+	}
+
+	if !pA.IfRaw {
+		infoT = fmt.Sprintf("%v/%v%v", IntToKMGT(pA.Count), IntToKMGT(pA.Total), percentT)
 	} else {
-		infoT = fmt.Sprintf("%v", pA.Count)
+		infoT = fmt.Sprintf("%v/%v%v", pA.Count, pA.Total, percentT)
 	}
 
 	if pA.Callback != nil {
