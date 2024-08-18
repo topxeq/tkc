@@ -26606,9 +26606,10 @@ func (pA *TK) LoadImageFromBytes(dataA []byte, argsA ...string) interface{} {
 
 	readerT := bytes.NewReader(dataA)
 
-	typeT := GetSwitch(argsA, "-type=", "")
+	typeT := strings.TrimSpace(GetSwitch(argsA, "-type=", ""))
 
-	typeT = strings.TrimPrefix(typeT, ".")
+	typeT = strings.ToLower(strings.TrimPrefix(typeT, "."))
+	// Pl("LoadImageFromBytes: %#v", typeT)
 
 	switch typeT {
 	case "", "jpg", "jpeg":
@@ -26745,7 +26746,7 @@ func (p *TK) SaveImageToBytes(imageA image.Image, formatA ...string) []byte {
 	if formatA == nil || len(formatA) < 1 {
 		formatT = ".png"
 	} else {
-		formatT = strings.ToLower(formatA[0])
+		formatT = strings.ToLower(strings.TrimSpace(formatA[0]))
 	}
 
 	formatT = strings.Trim(formatT, ".")
