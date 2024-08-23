@@ -13431,7 +13431,7 @@ func (pA *TK) DownloadWebPage(urlA string, postDataA map[string]string, customHe
 
 	client := &http.Client{
 		//CheckRedirect: redirectPolicyFunc,
-		Timeout: time.Second * timeoutSecsT,
+		Timeout: timeoutSecsT,
 	}
 
 	var urlT string
@@ -13511,7 +13511,7 @@ func (pA *TK) DownloadWebPageX(urlA string, optsA ...interface{}) string {
 
 	client := &http.Client{
 		//CheckRedirect: redirectPolicyFunc,
-		Timeout: time.Second * timeoutSecsT,
+		Timeout: timeoutSecsT,
 	}
 
 	if proxyT != "" {
@@ -13726,7 +13726,7 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 
 	client := &http.Client{
 		//CheckRedirect: redirectPolicyFunc,
-		Timeout: time.Second * timeoutSecsT,
+		Timeout: timeoutSecsT, // time.Second * timeoutSecsT,
 	}
 
 	if proxyT != "" {
@@ -13948,7 +13948,7 @@ func (pA *TK) DownloadWebBytes(urlA string, postDataA map[string]string, customH
 
 	client := &http.Client{
 		//CheckRedirect: redirectPolicyFunc,
-		Timeout: time.Second * timeoutSecsT,
+		Timeout: timeoutSecsT,
 	}
 
 	var urlT string
