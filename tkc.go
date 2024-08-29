@@ -9006,6 +9006,21 @@ func (pA *TK) GetLastComponentOfFilePath(pathA string, sepA ...string) string {
 
 var GetLastComponentOfFilePath = TKX.GetLastComponentOfFilePath
 
+func (pA *TK) GetLastComponentBySeparator(strA string, sepA ...string) string {
+	var sepT string
+	if len(sepA) > 0 {
+		sepT = sepA[0]
+	} else {
+		sepT = GetFilePathSeperator()
+	}
+
+	listT := strings.Split(strA, sepT)
+
+	return listT[len(listT)-1]
+}
+
+var GetLastComponentBySeparator = TKX.GetLastComponentBySeparator
+
 func (pA *TK) GetDirOfFilePath(pathA string) string {
 	return filepath.Dir(pathA)
 }
