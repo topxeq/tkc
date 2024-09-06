@@ -28602,7 +28602,7 @@ func (fb *MemFile) Bytes() []byte {
 // HTML template
 
 func (pA *TK) ProcessHtmlTemplate(templateNameA string, baseDirA string, dataA interface{}, optsA ...string) interface{} {
-	tmplFile := filepath.Join(baseDirA, templateNameA, templateNameA)
+	tmplFile := filepath.Join(baseDirA, templateNameA)
 
 	if !IfFileExists(tmplFile) {
 		return fmt.Errorf("file not exists: %v", tmplFile)
