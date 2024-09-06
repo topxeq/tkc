@@ -25,6 +25,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"html/template"
 	"image"
 	"image/color"
 	"image/gif"
@@ -28597,3 +28598,31 @@ func (fb *MemFile) Bytes() []byte {
 	defer fb.m.Unlock()
 	return fb.b
 }
+
+// HTML template
+
+func (pA *TK) ProcessHtmlTemplate(templateNameA string, baseDirA string, dataA interface{}, optsA ...string) interface{} {
+	tmplFile := filepath.Join(baseDirA, templateNameA, templateNameA)
+
+	if !IfFileExists(tmplFile) {
+		return fmt.Errorf("file not exists: %v", tmplFile)
+	}
+
+	tmpl, errT := template.ParseFiles(tmplFile)
+
+	if errT != nil {
+		return errT
+	}
+
+	var sb = new(strings.Builder)
+
+	errT = tmpl.ExecuteTemplate(sb, templateNameA, dataA)
+
+	if errT != nil {
+		return errT
+	}
+
+	return sb.String()
+}
+
+var ProcessHtmlTemplate = TKX.ProcessHtmlTemplate
