@@ -3,6 +3,7 @@ module github.com/topxeq/tkc
 go 1.22.3
 
 require (
+	github.com/ALTree/bigfloat v0.2.0
 	github.com/aarzilli/sandblast v0.0.0-20151220083925-43f8fb998d06
 	github.com/atotto/clipboard v0.1.4
 	github.com/beevik/etree v1.4.0

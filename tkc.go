@@ -114,6 +114,8 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 
 	"github.com/pquerna/otp/totp"
+
+	"github.com/ALTree/bigfloat"
 )
 
 var VersionG = "v1.0.1"
@@ -8094,6 +8096,44 @@ func (pA *TK) ToBool(vA interface{}) bool {
 
 var ToBool = TKX.ToBool
 
+func (pA *TK) ToBoolWithDefaultValue(vA interface{}, defaultA ...bool) bool {
+	defaultT := false
+
+	if (defaultA != nil) && (len(defaultA) > 0) {
+		defaultT = defaultA[0]
+	}
+
+	if IsNil(vA) {
+		return defaultT
+	}
+
+	boolT, ok := vA.(bool)
+
+	if ok {
+		return boolT
+	}
+
+	strT, ok := vA.(string)
+
+	if ok {
+		lowerStr := strings.ToLower(strT)
+		if lowerStr == "yes" || lowerStr == "true" {
+			return true
+		}
+
+		if lowerStr == "no" || lowerStr == "false" {
+			return false
+		}
+
+		return defaultT
+	}
+
+	// Z...
+	return defaultT
+}
+
+var ToBoolWithDefaultValue = TKX.ToBoolWithDefaultValue
+
 func (pA *TK) BoolToStr(vA bool) string {
 	if vA {
 		return "true"
@@ -8222,7 +8262,7 @@ func (pA *TK) ToFloat(v interface{}, defaultA ...float64) (result float64) {
 		}
 	}()
 
-	switch v.(type) {
+	switch nv := v.(type) {
 	case bool:
 		if v.(bool) {
 			result = float64(1)
@@ -8275,6 +8315,13 @@ func (pA *TK) ToFloat(v interface{}, defaultA ...float64) (result float64) {
 		}
 
 		result = nT
+		return
+	case *big.Int:
+		result = float64(nv.Int64())
+		return
+	case *big.Float:
+		fv, _ := nv.Float64()
+		result = fv
 		return
 	default:
 		nT, errT := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
@@ -8361,6 +8408,13 @@ func (pA *TK) ToInt(v interface{}, defaultA ...int) (result int) {
 		}
 
 		result = int(nT)
+		return
+	case *big.Int:
+		result = int(nv.Int64())
+		return
+	case *big.Float:
+		rs, _ := nv.Int64()
+		result = int(rs)
 		return
 	case time.Duration:
 		result = int(nv)
@@ -28626,3 +28680,65 @@ func (pA *TK) ProcessHtmlTemplate(templateNameA string, baseDirA string, dataA i
 }
 
 var ProcessHtmlTemplate = TKX.ProcessHtmlTemplate
+
+// big float
+func (pA *TK) BigFloatPower(f1 *big.Float, f2 *big.Float) *big.Float {
+	return bigfloat.Pow(f1, f2)
+}
+
+var BigFloatPower = TKX.BigFloatPower
+
+func (pA *TK) BigFloatExp(f1 *big.Float) *big.Float {
+	return bigfloat.Exp(f1)
+}
+
+var BigFloatExp = TKX.BigFloatExp
+
+func (pA *TK) BigFloatLog(f1 *big.Float) *big.Float {
+	return bigfloat.Log(f1)
+}
+
+var BigFloatLog = TKX.BigFloatLog
+
+func (pA *TK) DealString(strA string, optsA ...string) string {
+	if strings.HasPrefix(strA, "HEX_") {
+		strA = strA[4:]
+
+		buf, errT := hex.DecodeString(strA)
+		if errT != nil {
+			return ErrStrf("failed decode hex: %v", errT)
+		}
+
+		return string(buf)
+	} else if strings.HasPrefix(strA, "//TXDEF#") || strings.HasPrefix(strA, "740404") {
+		codeT := ""
+
+		if len(optsA) > 0 {
+			codeT = optsA[0]
+		}
+
+		return DecryptStringByTXDEF(strA, codeT)
+	} else if strings.HasPrefix(strA, "//TXRR#") {
+		strA = strA[7:]
+
+		codeT := "char"
+
+		if len(optsA) > 0 {
+			codeT = optsA[0]
+		}
+
+		if strings.HasPrefix(strA, "//TXDEF#") {
+			strA = DecryptStringByTXDEF(strings.TrimSpace(strA[8:]), codeT)
+		}
+
+		if strings.HasPrefix(strA, "http") {
+			strA = ToStr(GetWeb(strings.TrimSpace(strA)))
+		}
+
+		return strA
+	}
+
+	return strA
+}
+
+var DealString = TKX.DealString
