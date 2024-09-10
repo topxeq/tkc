@@ -18250,6 +18250,10 @@ func (pA *TK) ReflectCallMethodQuick(vA interface{}, nameA string, argsA ...inte
 
 	rv2 := rv1.MethodByName(nameA)
 
+	if !rv2.IsValid() {
+		return nil
+	}
+
 	if rv2.IsZero() {
 		return nil
 	}
@@ -28347,13 +28351,15 @@ var NewImage = TKX.NewImage
 
 // base on github.com/gezhengbin888/similarity_compare
 
-func CalTextSimilarity(str1A string, str2A string) float64 {
+func (pA *TK) CalTextSimilarity(str1A string, str2A string) float64 {
 	if str1A == str2A {
 		return 1.0
 	}
 
 	return (calcScoreMain(str1A, str2A) + calcScoreMain(str1A, str2A)) / 2
 }
+
+var CalTextSimilarity = TKX.CalTextSimilarity
 
 func calcScoreMain(s_new string, s_old string) float64 {
 	newLen := utf8.RuneCountInString(s_new)
@@ -28454,7 +28460,7 @@ func SimilarText(str1 string, str2 string) int {
 	return SimilarChar(txt1, txt2) * 200 / (len(txt1) + len(txt2))
 }
 
-func GetTextSimilarity(str1A string, str2A string, methodA ...int) float64 {
+func (pA *TK) GetTextSimilarity(str1A string, str2A string, methodA ...int) float64 {
 	methodT := 0
 
 	if len(methodA) > 0 {
@@ -28467,6 +28473,8 @@ func GetTextSimilarity(str1A string, str2A string, methodA ...int) float64 {
 
 	return CalTextSimilarity(str1A, str2A)
 }
+
+var GetTextSimilarity = TKX.GetTextSimilarity
 
 // otp related
 
