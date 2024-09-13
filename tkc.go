@@ -14009,6 +14009,373 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 
 var GetWeb = TKX.GetWeb
 
+func (pA *TK) GetWebResponse(urlA string, optsA ...interface{}) interface{} {
+	// Pl("%#v", optsA)
+	timeoutStrT := GetSwitchI(optsA, "-timeout=", "15")
+
+	proxyT := GetSwitchI(optsA, "-proxy=", "")
+
+	timeoutSecsT := time.Second * time.Duration(StrToInt(timeoutStrT, 15))
+
+	client := &http.Client{
+		//CheckRedirect: redirectPolicyFunc,
+		Timeout: timeoutSecsT, // time.Second * timeoutSecsT,
+	}
+
+	if proxyT != "" {
+		urli := url.URL{}
+		urlproxy, errT := urli.Parse(proxyT)
+
+		if errT != nil {
+			return errT
+		}
+
+		client.Transport = &http.Transport{
+			Proxy: http.ProxyURL(urlproxy),
+		}
+	}
+
+	var urlT string
+	if !StartsWithIgnoreCase(urlA, "http") {
+		urlT = "http://" + urlA
+	} else {
+		urlT = urlA
+	}
+
+	var respT *http.Response
+	var errT error
+	var req *http.Request
+
+	reqTypeT := GetSwitchI(optsA, "-method=", "GET")
+
+	var postDataT url.Values = nil
+
+	postStrT := GetSwitchI(optsA, "-post=", "")
+
+	var postBytesT []byte = nil
+
+	if postStrT != "" {
+		if strings.HasPrefix(postStrT, "HEX_") {
+			postStrT = HexToStr(postStrT)
+		}
+
+		postObjT, errT := FromJSON(postStrT)
+
+		if errT == nil {
+			postMapT, ok := postObjT.(map[string]interface{})
+
+			if ok {
+				postDataT = MapToPostDataI(postMapT)
+			}
+		}
+	}
+
+	if postDataT == nil {
+		for _, v := range optsA {
+			rv, ok := v.(url.Values)
+
+			if ok {
+				postDataT = rv
+				break
+			}
+
+			rv2, ok := v.(map[string]string)
+
+			if ok {
+				postDataT = MapToPostData(rv2)
+				break
+			}
+
+			rv3, ok := v.(map[string]interface{})
+
+			if ok {
+				postDataT = MapToPostDataI(rv3)
+				break
+			}
+
+			rv4, ok := v.([]byte)
+
+			if ok {
+				postBytesT = rv4
+				break
+			}
+		}
+	}
+
+	postBodyT := GetSwitchI(optsA, "-postBody=", "")
+
+	if strings.HasPrefix(postBodyT, "HEX_") {
+		postBodyT = HexToStr(postBodyT)
+	}
+
+	if (postDataT != nil && len(postDataT) > 0) || postBodyT != "" || postBytesT != nil {
+		if reqTypeT != "PUT" {
+			reqTypeT = "POST"
+		}
+
+	}
+
+	postFileT := GetSwitchI(optsA, "-postFile=", "")
+
+	if reqTypeT == "POST" || reqTypeT == "PUT" {
+		if postBytesT != nil {
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewReader(postBytesT))
+
+		} else if postBodyT != "" {
+			req, errT = http.NewRequest(reqTypeT, urlT, strings.NewReader(postBodyT))
+
+		} else if postFileT != "" {
+			// file1, err := os.Open(postFileT)
+			// if err != nil {
+			// 	return GenerateErrorStringF("failed to load file content: %v", err)
+			// }
+
+			// defer file1.Close()
+
+			bufT := LoadBytes(postFileT)
+
+			// req, errT = http.NewRequest(reqTypeT, urlT, bufio.NewReader(file1))
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewReader(bufT))
+
+		} else {
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewBufferString(postDataT.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+		}
+		// req.PostForm = MapToPostData(postDataA)
+	} else {
+		req, errT = http.NewRequest(reqTypeT, urlT, nil)
+	}
+
+	if errT != nil {
+		return errT
+	}
+
+	customHeadersStrT := Trim(GetSwitchI(optsA, "-headers=", ""))
+
+	if customHeadersStrT != "" {
+		if strings.HasPrefix(customHeadersStrT, "HEX_") {
+			customHeadersStrT = HexToStr(customHeadersStrT)
+		}
+
+		headerObjT, errT := FromJSON(customHeadersStrT)
+
+		if errT == nil {
+			headerMapT, ok := headerObjT.(map[string]interface{})
+
+			if ok {
+				for k, v := range headerMapT {
+					s, ok := v.(string)
+					if ok {
+						req.Header.Add(k, s)
+					}
+				}
+			}
+		}
+	}
+
+	if IfSwitchExistsWholeI(optsA, "-verbose") {
+		Pl("REQ: %v", req)
+	}
+
+	respT, errT = client.Do(req)
+
+	if errT != nil {
+		return fmt.Errorf("failed to get response: %v", errT)
+	}
+
+	return respT
+}
+
+var GetWebResponse = TKX.GetWebResponse
+
+func (pA *TK) GetWebResponseBody(urlA string, optsA ...interface{}) interface{} {
+	// Pl("%#v", optsA)
+	timeoutStrT := GetSwitchI(optsA, "-timeout=", "15")
+
+	proxyT := GetSwitchI(optsA, "-proxy=", "")
+
+	timeoutSecsT := time.Second * time.Duration(StrToInt(timeoutStrT, 15))
+
+	client := &http.Client{
+		//CheckRedirect: redirectPolicyFunc,
+		Timeout: timeoutSecsT, // time.Second * timeoutSecsT,
+	}
+
+	if proxyT != "" {
+		urli := url.URL{}
+		urlproxy, errT := urli.Parse(proxyT)
+
+		if errT != nil {
+			return errT
+		}
+
+		client.Transport = &http.Transport{
+			Proxy: http.ProxyURL(urlproxy),
+		}
+	}
+
+	var urlT string
+	if !StartsWithIgnoreCase(urlA, "http") {
+		urlT = "http://" + urlA
+	} else {
+		urlT = urlA
+	}
+
+	var respT *http.Response
+	var errT error
+	var req *http.Request
+
+	reqTypeT := GetSwitchI(optsA, "-method=", "GET")
+
+	var postDataT url.Values = nil
+
+	postStrT := GetSwitchI(optsA, "-post=", "")
+
+	var postBytesT []byte = nil
+
+	if postStrT != "" {
+		if strings.HasPrefix(postStrT, "HEX_") {
+			postStrT = HexToStr(postStrT)
+		}
+
+		postObjT, errT := FromJSON(postStrT)
+
+		if errT == nil {
+			postMapT, ok := postObjT.(map[string]interface{})
+
+			if ok {
+				postDataT = MapToPostDataI(postMapT)
+			}
+		}
+	}
+
+	if postDataT == nil {
+		for _, v := range optsA {
+			rv, ok := v.(url.Values)
+
+			if ok {
+				postDataT = rv
+				break
+			}
+
+			rv2, ok := v.(map[string]string)
+
+			if ok {
+				postDataT = MapToPostData(rv2)
+				break
+			}
+
+			rv3, ok := v.(map[string]interface{})
+
+			if ok {
+				postDataT = MapToPostDataI(rv3)
+				break
+			}
+
+			rv4, ok := v.([]byte)
+
+			if ok {
+				postBytesT = rv4
+				break
+			}
+		}
+	}
+
+	postBodyT := GetSwitchI(optsA, "-postBody=", "")
+
+	if strings.HasPrefix(postBodyT, "HEX_") {
+		postBodyT = HexToStr(postBodyT)
+	}
+
+	if (postDataT != nil && len(postDataT) > 0) || postBodyT != "" || postBytesT != nil {
+		if reqTypeT != "PUT" {
+			reqTypeT = "POST"
+		}
+
+	}
+
+	postFileT := GetSwitchI(optsA, "-postFile=", "")
+
+	if reqTypeT == "POST" || reqTypeT == "PUT" {
+		if postBytesT != nil {
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewReader(postBytesT))
+
+		} else if postBodyT != "" {
+			req, errT = http.NewRequest(reqTypeT, urlT, strings.NewReader(postBodyT))
+
+		} else if postFileT != "" {
+			// file1, err := os.Open(postFileT)
+			// if err != nil {
+			// 	return GenerateErrorStringF("failed to load file content: %v", err)
+			// }
+
+			// defer file1.Close()
+
+			bufT := LoadBytes(postFileT)
+
+			// req, errT = http.NewRequest(reqTypeT, urlT, bufio.NewReader(file1))
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewReader(bufT))
+
+		} else {
+			req, errT = http.NewRequest(reqTypeT, urlT, bytes.NewBufferString(postDataT.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+		}
+		// req.PostForm = MapToPostData(postDataA)
+	} else {
+		req, errT = http.NewRequest(reqTypeT, urlT, nil)
+	}
+
+	if errT != nil {
+		return errT
+	}
+
+	customHeadersStrT := Trim(GetSwitchI(optsA, "-headers=", ""))
+
+	if customHeadersStrT != "" {
+		if strings.HasPrefix(customHeadersStrT, "HEX_") {
+			customHeadersStrT = HexToStr(customHeadersStrT)
+		}
+
+		headerObjT, errT := FromJSON(customHeadersStrT)
+
+		if errT == nil {
+			headerMapT, ok := headerObjT.(map[string]interface{})
+
+			if ok {
+				for k, v := range headerMapT {
+					s, ok := v.(string)
+					if ok {
+						req.Header.Add(k, s)
+					}
+				}
+			}
+		}
+	}
+
+	if IfSwitchExistsWholeI(optsA, "-verbose") {
+		Pl("REQ: %v", req)
+	}
+
+	respT, errT = client.Do(req)
+
+	if errT != nil {
+		return fmt.Errorf("failed to get response: %v", errT)
+	}
+
+	// if respT.StatusCode != 200 {
+	// 	respT.Body.Close()
+	// 	return fmt.Errorf("response status: %v", respT.StatusCode)
+	// }
+
+	if IfSwitchExistsWholeI(optsA, "-withLen") {
+		return []interface{}{respT.Body, respT.ContentLength}
+	}
+
+	return respT.Body
+}
+
+var GetWebResponseBody = TKX.GetWebResponseBody
+
 func (pA *TK) DownloadWebBytes(urlA string, postDataA map[string]string, customHeadersA map[string]string, optsA ...string) ([]byte, map[string]string, error) {
 	timeoutStrT := GetSwitch(optsA, "-timeout=", "15")
 
@@ -28750,3 +29117,374 @@ func (pA *TK) DealString(strA string, optsA ...string) string {
 }
 
 var DealString = TKX.DealString
+
+// steganography related
+
+// modified from github.com/auyer/steganography
+
+// EncodeNRGBA encodes a given string into the input image using least significant bit encryption (LSB steganography)
+// The minnimum image size is 24 pixels for one byte. For each additional byte, it is necessary 3 more pixels.
+/*
+	Input:
+		writeBuffer *bytes.Buffer : the destination of the encoded image bytes
+		pictureInputFile image.NRGBA : image data used in encoding
+		message []byte : byte slice of the message to be encoded
+	Output:
+		bytes buffer ( io.writter ) to create file, or send data.
+*/
+func EncodeNRGBA(writeBuffer *bytes.Buffer, rgbImage *image.NRGBA, message []byte) error {
+
+	var messageLength = uint32(len(message))
+
+	var width = rgbImage.Bounds().Dx()
+	var height = rgbImage.Bounds().Dy()
+	var c color.NRGBA
+	var bit byte
+	var ok bool
+	//var encodedImage image.Image
+	if MaxEncodeSize(rgbImage) < messageLength+4 {
+		return errors.New("message too large for image")
+	}
+
+	one, two, three, four := splitToBytes(messageLength)
+
+	message = append([]byte{four}, message...)
+	message = append([]byte{three}, message...)
+	message = append([]byte{two}, message...)
+	message = append([]byte{one}, message...)
+
+	ch := make(chan byte, 100)
+
+	go getNextBitFromString(message, ch)
+
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+
+			c = rgbImage.NRGBAAt(x, y) // get the color at this pixel
+
+			/*  RED  */
+			bit, ok = <-ch
+			if !ok { // if we don't have any more bits left in our message
+
+				rgbImage.SetNRGBA(x, y, c)
+				break
+			}
+			setLSB(&c.R, bit)
+
+			/*  GREEN  */
+			bit, ok = <-ch
+			if !ok {
+				rgbImage.SetNRGBA(x, y, c)
+				break
+			}
+			setLSB(&c.G, bit)
+
+			/*  BLUE  */
+			bit, ok = <-ch
+			if !ok {
+				rgbImage.SetNRGBA(x, y, c)
+				break
+			}
+			setLSB(&c.B, bit)
+
+			rgbImage.SetNRGBA(x, y, c)
+		}
+	}
+
+	err := png.Encode(writeBuffer, rgbImage)
+	return err
+}
+
+// Encode encodes a given string into the input image using least significant bit encryption (LSB steganography)
+// The minnimum image size is 23 pixels
+// It wraps EncodeNRGBA making the conversion from image.Image to image.NRGBA
+/*
+	Input:
+		writeBuffer *bytes.Buffer : the destination of the encoded image bytes
+		message []byte : byte slice of the message to be encoded
+		pictureInputFile image.Image : image data used in encoding
+	Output:
+		bytes buffer ( io.writter ) to create file, or send data.
+*/
+func EncodeBytesInImageBuffer(bufA *bytes.Buffer, imageA *image.Image, contentA []byte, optsA ...string) error {
+	if imageA == nil {
+		imageT := NewImage(optsA...)
+
+		rgbImageT := imageToNRGBA(imageT)
+
+		return EncodeNRGBA(bufA, rgbImageT, contentA)
+	}
+
+	rgbImageT := imageToNRGBA(*imageA)
+
+	return EncodeNRGBA(bufA, rgbImageT, contentA)
+}
+
+func (p *TK) EncodeBytesInImage(contentA []byte, imageA image.Image, optsA ...string) interface{} {
+	bufT := new(bytes.Buffer)
+	rgbImageT := imageToNRGBA(imageA)
+
+	errT := EncodeNRGBA(bufT, rgbImageT, contentA)
+
+	if errT != nil {
+		return errT
+	}
+
+	return bufT.Bytes()
+}
+
+var EncodeBytesInImage = TKX.EncodeBytesInImage
+
+func (p *TK) DecodeBytesFromImage(imageA image.Image, optsA ...string) []byte {
+	sizeOfMessageT := GetMessageSizeFromImage(imageA)
+
+	bufT := Decode(sizeOfMessageT, imageA)
+
+	return bufT
+}
+
+var DecodeBytesFromImage = TKX.DecodeBytesFromImage
+
+// decodeNRGBA gets messages from pictures using LSB steganography, decode the message from the picture and return it as a sequence of bytes
+/*
+	Input:
+		startOffset uint32 : number of bytes used to declare size of message
+		msgLen uint32 : size of the message to be decoded
+		pictureInputFile image.NRGBA : image data used in decoding
+	Output:
+		message []byte decoded from image
+*/
+func decodeNRGBA(startOffset uint32, msgLen uint32, rgbImage *image.NRGBA) (message []byte) {
+
+	var byteIndex uint32
+	var bitIndex uint32
+
+	width := rgbImage.Bounds().Dx()
+	height := rgbImage.Bounds().Dy()
+
+	var c color.NRGBA
+	var lsb byte
+
+	message = append(message, 0)
+
+	// iterate through every pixel in the image and stitch together the message bit by bit
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+
+			c = rgbImage.NRGBAAt(x, y) // get the color of the pixel
+
+			/*  RED  */
+			lsb = getLSB(c.R)                                                    // get the least significant bit from the red component of this pixel
+			message[byteIndex] = setBitInByte(message[byteIndex], bitIndex, lsb) // add this bit to the message
+			bitIndex++
+
+			if bitIndex > 7 { // when we have filled up a byte, move on to the next byte
+				bitIndex = 0
+				byteIndex++
+
+				if byteIndex >= msgLen+startOffset {
+					return message[startOffset : msgLen+startOffset]
+				}
+
+				message = append(message, 0)
+			}
+
+			/*  GREEN  */
+			lsb = getLSB(c.G)
+			message[byteIndex] = setBitInByte(message[byteIndex], bitIndex, lsb)
+			bitIndex++
+
+			if bitIndex > 7 {
+
+				bitIndex = 0
+				byteIndex++
+
+				if byteIndex >= msgLen+startOffset {
+					return message[startOffset : msgLen+startOffset]
+				}
+
+				message = append(message, 0)
+			}
+
+			/*  BLUE  */
+			lsb = getLSB(c.B)
+			message[byteIndex] = setBitInByte(message[byteIndex], bitIndex, lsb)
+			bitIndex++
+
+			if bitIndex > 7 {
+				bitIndex = 0
+				byteIndex++
+
+				if byteIndex >= msgLen+startOffset {
+					return message[startOffset : msgLen+startOffset]
+				}
+
+				message = append(message, 0)
+			}
+		}
+	}
+	return
+}
+
+// decode gets messages from pictures using LSB steganography, decode the message from the picture and return it as a sequence of bytes
+// It wraps EncodeNRGBA making the conversion from image.Image to image.NRGBA
+/*
+	Input:
+		startOffset uint32 : number of bytes used to declare size of message
+		msgLen uint32 : size of the message to be decoded
+		pictureInputFile image.Image : image data used in decoding
+	Output:
+		message []byte decoded from image
+*/
+func decode(startOffset uint32, msgLen uint32, pictureInputFile image.Image) (message []byte) {
+
+	rgbImage := imageToNRGBA(pictureInputFile)
+	return decodeNRGBA(startOffset, msgLen, rgbImage)
+
+}
+
+// Decode gets messages from pictures using LSB steganography, decode the message from the picture and return it as a sequence of bytes
+// It wraps EncodeNRGBA making the conversion from image.Image to image.NRGBA
+/*
+	Input:
+		msgLen uint32 : size of the message to be decoded
+		pictureInputFile image.Image : image data used in decoding
+	Output:
+		message []byte decoded from image
+*/
+func Decode(msgLen uint32, pictureInputFile image.Image) (message []byte) {
+	return decode(4, msgLen, pictureInputFile) // the offset of 4 skips the "header" where message length is defined
+
+}
+
+// MaxEncodeSize given an image will find how many bytes can be stored in that image using least significant bit encoding
+// ((width * height * 3) / 8 ) - 4
+// The result must be at least 4,
+func MaxEncodeSize(img image.Image) uint32 {
+	width := img.Bounds().Dx()
+	height := img.Bounds().Dy()
+	eval := ((width * height * 3) / 8) - 4
+	if eval < 4 {
+		eval = 0
+	}
+	return uint32(eval)
+}
+
+// GetMessageSizeFromImage gets the size of the message from the first four bytes encoded in the image
+func GetMessageSizeFromImage(pictureInputFile image.Image) (size uint32) {
+
+	sizeAsByteArray := decode(0, 4, pictureInputFile)
+	size = combineToInt(sizeAsByteArray[0], sizeAsByteArray[1], sizeAsByteArray[2], sizeAsByteArray[3])
+	return
+}
+
+// getNextBitFromString each call will return the next subsequent bit in the string
+func getNextBitFromString(byteArray []byte, ch chan byte) {
+
+	var offsetInBytes int
+	var offsetInBitsIntoByte int
+	var choiceByte byte
+
+	lenOfString := len(byteArray)
+
+	for {
+		if offsetInBytes >= lenOfString {
+			close(ch)
+			return
+		}
+
+		choiceByte = byteArray[offsetInBytes]
+		ch <- getBitFromByte(choiceByte, offsetInBitsIntoByte)
+
+		offsetInBitsIntoByte++
+
+		if offsetInBitsIntoByte >= 8 {
+			offsetInBitsIntoByte = 0
+			offsetInBytes++
+		}
+	}
+}
+
+// getLSB given a byte, will return the least significant bit of that byte
+func getLSB(b byte) byte {
+	if b%2 == 0 {
+		return 0
+	}
+	return 1
+}
+
+// setLSB given a byte will set that byte's least significant bit to a given value (where true is 1 and false is 0)
+func setLSB(b *byte, bit byte) {
+	if bit == 1 {
+		*b = *b | 1
+	} else if bit == 0 {
+		var mask byte = 0xFE
+		*b = *b & mask
+	}
+}
+
+// getBitFromByte given a bit will return a bit from that byte
+func getBitFromByte(b byte, indexInByte int) byte {
+	b = b << uint(indexInByte)
+	var mask byte = 0x80
+
+	var bit = mask & b
+
+	if bit == 128 {
+		return 1
+	}
+	return 0
+}
+
+// setBitInByte sets a specific bit in a byte to a given value and returns the new byte
+func setBitInByte(b byte, indexInByte uint32, bit byte) byte {
+	var mask byte = 0x80
+	mask = mask >> uint(indexInByte)
+
+	if bit == 0 {
+		mask = ^mask
+		b = b & mask
+	} else if bit == 1 {
+		b = b | mask
+	}
+	return b
+}
+
+// combineToInt given four bytes, will return the 32 bit unsigned integer which is the composition of those four bytes (one is MSB)
+func combineToInt(one, two, three, four byte) (ret uint32) {
+	ret = uint32(one)
+	ret = ret << 8
+	ret = ret | uint32(two)
+	ret = ret << 8
+	ret = ret | uint32(three)
+	ret = ret << 8
+	ret = ret | uint32(four)
+	return
+}
+
+// splitToBytes given an unsigned integer, will split this integer into its four bytes
+func splitToBytes(x uint32) (one, two, three, four byte) {
+	one = byte(x >> 24)
+	var mask uint32 = 255
+
+	two = byte((x >> 16) & mask)
+	three = byte((x >> 8) & mask)
+	four = byte(x & mask)
+	return
+}
+
+// imageToNRGBA converts image.Image to image.NRGBA
+func imageToNRGBA(src image.Image) *image.NRGBA {
+	bounds := src.Bounds()
+
+	var m *image.NRGBA
+	var width, height int
+
+	width = bounds.Dx()
+	height = bounds.Dy()
+
+	m = image.NewNRGBA(image.Rect(0, 0, width, height))
+
+	draw.Draw(m, m.Bounds(), src, bounds.Min, draw.Src)
+	return m
+}
