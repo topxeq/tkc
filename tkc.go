@@ -2755,11 +2755,13 @@ func (v ByteQueue) GetInfo() string {
 
 	currentT := v.Head
 
+	bufT.WriteString("(ByteQueue)[")
 	for currentT != nil {
-		bufT.WriteString(fmt.Sprintf(" %#v", currentT))
+		bufT.WriteString(fmt.Sprintf(" %v", currentT))
 
 		currentT = currentT.Next
 	}
+	bufT.WriteString(" ]")
 
 	// rs := Spr("Head: %v, Tail: %v, Buf: %#v", v.Head, v.Tail, v)
 
