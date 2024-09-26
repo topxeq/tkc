@@ -4726,6 +4726,20 @@ func (pA *TK) CompareTimeString(str1A, str2A, formatA string) (int, error) {
 
 var CompareTimeString = TKX.CompareTimeString
 
+// input: 202301, output 20230201000000, return TXERROR string for error
+func (pA *TK) GetNextMonthStart(timeStrA string) string {
+	t1, err := time.Parse("200601", timeStrA)
+	if err != nil {
+		return ErrStrf("invalid format for time")
+	}
+
+	t2 := t1.AddDate(0, 1, 0)
+
+	return t2.Format("200601") + "01000000"
+}
+
+var GetNextMonthStart = TKX.GetNextMonthStart
+
 func (pA *TK) ToTime(timeA interface{}, defaultA ...interface{}) interface{} {
 	// Pl("ToTime: %#v, %#v", timeA, defaultA)
 	timeT, ok := timeA.(time.Time)
@@ -10502,6 +10516,53 @@ func (pA *TK) BytesEndsWith(dataA []byte, subA interface{}) bool {
 }
 
 var BytesEndsWith = TKX.BytesEndsWith
+
+func (pA *TK) BytesContains(dataA []byte, subA interface{}) bool {
+	if dataA == nil || len(dataA) < 1 {
+		return false
+	}
+
+	switch nv := subA.(type) {
+	case []byte:
+		if len(dataA) < len(nv) {
+			return false
+		}
+
+		return bytes.Contains(dataA, nv)
+	case []rune:
+		nv1 := []byte(string(nv))
+		if len(dataA) < len(nv1) {
+			return false
+		}
+
+		return bytes.Contains(dataA, nv1)
+	case string:
+		nv1 := []byte(nv)
+		if len(dataA) < len(nv1) {
+			return false
+		}
+
+		return bytes.Contains(dataA, nv1)
+	case []interface{}:
+		lenT := len(nv)
+
+		if len(dataA) < lenT {
+			return false
+		}
+
+		bufT := make([]byte, lenT)
+
+		for i := 0; i < lenT; i++ {
+			bufT[i] = ToByte(nv[i])
+		}
+
+		return bytes.Contains(dataA, bufT)
+	}
+
+	return false
+}
+
+var BytesContains = TKX.BytesContains
 
 // 双行列表相关 dual list related
 
