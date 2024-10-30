@@ -23804,7 +23804,7 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		}
 		
 		return elmentT
-	case "tk":
+	case "tk", "tkc":
 		return NewTK()
 	}
 
