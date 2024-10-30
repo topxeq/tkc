@@ -18086,6 +18086,32 @@ func (pA *TK) FromXMLX(xmlA string, nodeA ...interface{}) interface{} {
 
 var FromXMLX = TKX.FromXMLX
 
+func (pA *TK) GetXmlDocument(xmlA string) interface{} {
+	var errT error
+
+	treeT := etree.NewDocument()
+
+	if treeT == nil {
+		return Errf("create XML tree failed")
+	}
+	
+	xmlT := strings.TrimSpace(xmlA)
+	
+	if xmlT == "" {
+		return treeT
+	}
+
+	errT = treeT.ReadFromString(xmlT)
+
+	if errT != nil {
+		return Errf("invalid XML: %v", errT)
+	}
+
+	return treeT
+}
+
+var GetXmlDocument = TKX.GetXmlDocument
+
 func (pA *TK) GetMSSArrayFromXML(xmlA string, nodeA string) ([]map[string]string, error) {
 	var errT error
 
@@ -18338,17 +18364,19 @@ func (pA *TK) FromXML(xmlA string) (interface{}, error) {
 
 var FromXML = TKX.FromXML
 
-// func FromXML(xmlA string) (map[string]interface{}, error) {
-// 	result := make(map[string]interface{})
-
-// 	err := xml.Unmarshal([]byte(xmlA), &result)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return result, nil
-// }
+//func (pA *TK) FromXMLX2(xmlA string) interface{} {
+//	var result map[string]interface{}
+//
+//	err := xml.Unmarshal([]byte(xmlA), &result)
+//
+//	if err != nil {
+//		return err
+//	}
+//
+//	return result
+//}
+//
+//var FromXMLX2 = TKX.FromXMLX2
 
 func (pA *TK) FromXMLWithDefault(xmlA string, defaultA interface{}) interface{} {
 	// decoder := NewXMLDecoder(strings.NewReader(xmlA))
@@ -23740,6 +23768,42 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		return NewImage(AnyArrayToStringArray(argsA[1:])...)
 	case "memfile":
 		return NewMemFile(nil)
+	case "xmltree":
+		treeT := etree.NewDocument()
+
+		if treeT == nil {
+			return Errf("create XML tree failed")
+		}
+		
+		if lenT < 2 {
+			return treeT
+		}
+		
+		xmlT := strings.TrimSpace(ToStr(argsA[1]))
+		
+		if xmlT == "" {
+			return treeT
+		}
+
+		errT := treeT.ReadFromString(xmlT)
+
+		if errT != nil {
+			return Errf("invalid XML: %v", errT)
+		}
+
+		return treeT
+	case "xmlelement":
+		if lenT < 2 {
+			return Errf("not enough parameters")
+		}
+
+		elmentT := etree.NewElement(ToStr(argsA[1]))
+
+		if elmentT == nil {
+			return Errf("create XML element failed")
+		}
+		
+		return elmentT
 	case "tk":
 		return NewTK()
 	}
