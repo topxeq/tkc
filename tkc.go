@@ -15019,7 +15019,12 @@ var PostRequest = TKX.PostRequest
 // PostRequestX : Post Request with custom headers
 func (pA *TK) PostRequestX(urlA, reqBodyA string, customHeadersA string, timeoutSecsA time.Duration, optsA ...string) (string, error) {
 
-	req, err := http.NewRequest("POST", urlA, strings.NewReader(reqBodyA))
+	methodT := "POST"
+	if IfSwitchExistsWhole(optsA, "-forceGet") {
+		methodT = "GET"
+	}
+
+	req, err := http.NewRequest(, urlA, strings.NewReader(reqBodyA))
 
 	if err != nil {
 		return "", err
@@ -23768,7 +23773,7 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		return NewImage(AnyArrayToStringArray(argsA[1:])...)
 	case "memfile":
 		return NewMemFile(nil)
-	case "xmltree":
+	case "xmltree", "xmldocument":
 		treeT := etree.NewDocument()
 
 		if treeT == nil {
