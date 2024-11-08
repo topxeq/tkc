@@ -15024,7 +15024,7 @@ func (pA *TK) PostRequestX(urlA, reqBodyA string, customHeadersA string, timeout
 		methodT = "GET"
 	}
 
-	req, err := http.NewRequest(, urlA, strings.NewReader(reqBodyA))
+	req, err := http.NewRequest(methodT, urlA, strings.NewReader(reqBodyA))
 
 	if err != nil {
 		return "", err
