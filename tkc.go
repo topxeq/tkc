@@ -29217,6 +29217,23 @@ func (pA *TK) DealString(strA string, optsA ...string) string {
 		}
 
 		return string(buf)
+	} else if strings.HasPrefix(strA, "//TXHEX#") {
+		strA = strA[8:]
+
+		buf, errT := hex.DecodeString(strA)
+		if errT != nil {
+			return ErrStrf("failed decode hex: %v", errT)
+		}
+
+		return string(buf)
+	} else if strings.HasPrefix(strA, "//TXTE#") {
+		codeT := ""
+
+		if len(optsA) > 0 {
+			codeT = optsA[0]
+		}
+
+		return DecryptStringByTXTE(strA[7:], codeT)
 	} else if strings.HasPrefix(strA, "//TXDEF#") || strings.HasPrefix(strA, "740404") {
 		codeT := ""
 
