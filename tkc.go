@@ -172,6 +172,187 @@ func (pA *TK) IsUndefined(vA interface{}) bool {
 
 var IsUndefined = TKX.IsUndefined
 
+// SimpleFlexObject
+type SimpleFlexObject struct {
+	IsValid  bool
+	Items    []string
+	ItemsMap map[string]int
+	KeysMap  map[int]string
+}
+
+func (pA *TK) NewSimpleFlexObject() *SimpleFlexObject {
+	return &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true}
+}
+
+var NewSimpleFlexObject = TKX.NewSimpleFlexObject
+
+func (pA *TK) NewSimpleFlexObjectWithString(strA string, mustA bool) *SimpleFlexObject {
+	rs := &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true}
+
+	rs.Decode(strA, mustA)
+
+	return rs
+}
+
+var NewSimpleFlexObjectWithString = TKX.NewSimpleFlexObjectWithString
+
+func (p *SimpleFlexObject) Decode(strA string, mustA bool) {
+	listT := strings.Split(strA, "|||")
+
+	var tmps0 string
+
+	if len(listT) < 3 {
+		if mustA {
+			tmps0 = listT[0]
+		} else {
+			p.IsValid = false
+			return
+		}
+	} else {
+		tmps0 = listT[1]
+	}
+
+	list1T := strings.Split(tmps0, "$$")
+
+	len1T := len(list1T)
+
+	//	p.Items =  make([]string, len1T)
+	//
+	//	p.ItemsMap =
+
+	baseLenT := len(p.Items)
+
+	for i := 0; i < len1T; i++ {
+		list2T := strings.Split(list1T[i], "^^")
+
+		if len(list2T) > 1 {
+			p.Items = append(p.Items, list2T[1])
+			p.ItemsMap[list2T[0]] = baseLenT + i
+			p.KeysMap[baseLenT+i] = list2T[0]
+		} else {
+			p.Items = append(p.Items, list2T[0])
+		}
+	}
+
+}
+
+func (p *SimpleFlexObject) Encode(defaultA ...string) string {
+	defaultT := ""
+
+	if len(defaultA) > 0 {
+		defaultT = defaultA[0]
+	}
+
+	var sbufT strings.Builder
+
+	if !p.IsValid {
+		return defaultT
+	}
+
+	len0T := len(p.Items)
+
+	sbufT.WriteString("|||")
+
+	for i := 0; i < len0T; i++ {
+		if i != 0 {
+			sbufT.WriteString("$$")
+		}
+
+		tmps1, b := p.KeysMap[i]
+
+		if b {
+			sbufT.WriteString(tmps1)
+			sbufT.WriteString("^^")
+		}
+
+		sbufT.WriteString(p.Items[i])
+
+	}
+
+	sbufT.WriteString("|||")
+
+	return sbufT.String()
+}
+
+func (p *SimpleFlexObject) GetMapItem(keyA string, defaultA ...string) string {
+	defaultT := ""
+
+	if len(defaultA) > 0 {
+		defaultT = defaultA[0]
+	}
+
+	if !p.IsValid {
+		return defaultT
+	}
+
+	tmpi, b := p.ItemsMap[keyA]
+
+	if !b {
+		return defaultT
+	}
+
+	if (tmpi < 0) || (tmpi >= len(p.Items)) {
+		return defaultT
+	}
+
+	return p.Items[tmpi]
+
+}
+
+func (p SimpleFlexObject) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("{")
+
+	i := 0
+	for tmps, v := range p.ItemsMap {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(tmps)
+		sb.WriteString(": ")
+		sb.WriteString(IntToStr(v))
+
+		i++
+	}
+
+	sb.WriteString("}")
+
+	sb.WriteString("{")
+
+	i = 0
+	for tmpi, v := range p.KeysMap {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(IntToStr(tmpi))
+		sb.WriteString(": ")
+		sb.WriteString(v)
+
+		i++
+	}
+
+	sb.WriteString("}")
+
+	sb.WriteString("[")
+
+	i = 0
+	for _, v := range p.Items {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(strconv.Quote(v))
+		i++
+	}
+
+	sb.WriteString("]")
+
+	return sb.String()
+}
+
 // IntSumBuffer
 type IntSumBuffer struct {
 	Size    int
@@ -18099,9 +18280,9 @@ func (pA *TK) GetXmlDocument(xmlA string) interface{} {
 	if treeT == nil {
 		return Errf("create XML tree failed")
 	}
-	
+
 	xmlT := strings.TrimSpace(xmlA)
-	
+
 	if xmlT == "" {
 		return treeT
 	}
@@ -19085,6 +19266,62 @@ func (pA *TK) WrapError(vA interface{}, errA error) interface{} {
 }
 
 var WrapError = TKX.WrapError
+
+func (pA *TK) StatusToString(statusA string) string {
+	var mapT map[string]string
+
+	errT := jsoniter.Unmarshal([]byte(statusA), &mapT)
+
+	if errT != nil {
+		return "TXERROR:failed to parse JSON: " + errT.Error()
+	}
+
+	statusT, ok := mapT["Status"]
+
+	if !ok {
+		return "TXERROR:invalid data format"
+	}
+
+	valueT, ok := mapT["Value"]
+
+	if !ok {
+		return "TXERROR:invalid data format"
+	}
+
+	if statusT == "success" {
+		return valueT
+	}
+
+	return "TXERROR:" + valueT
+}
+
+var StatusToString = TKX.StatusToString
+
+func (pA *TK) StringsToJson(strsA ...string) string {
+	lenT := len(strsA)
+
+	if lenT < 2 {
+		return "{}"
+	}
+
+	len2T := lenT / 2
+
+	mapT := map[string]string{}
+
+	for i := 0; i < len2T; i++ {
+		mapT[strsA[i*2]] = strsA[i*2+1]
+	}
+
+	rs, errT := jsoniter.Marshal(mapT)
+
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+
+	return string(rs)
+}
+
+var StringsToJson = TKX.StringsToJson
 
 func (pA *TK) DealRef(refA *interface{}, cmdA string, argsA ...interface{}) interface{} {
 	vT := *refA
@@ -23779,13 +24016,13 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		if treeT == nil {
 			return Errf("create XML tree failed")
 		}
-		
+
 		if lenT < 2 {
 			return treeT
 		}
-		
+
 		xmlT := strings.TrimSpace(ToStr(argsA[1]))
-		
+
 		if xmlT == "" {
 			return treeT
 		}
@@ -23807,7 +24044,7 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		if elmentT == nil {
 			return Errf("create XML element failed")
 		}
-		
+
 		return elmentT
 	case "tk", "tkc":
 		return NewTK()
@@ -29254,6 +29491,8 @@ func (pA *TK) DealString(strA string, optsA ...string) string {
 		if strings.HasPrefix(strA, "//TXDEF#") {
 			strA = DecryptStringByTXDEF(strings.TrimSpace(strA[8:]), codeT)
 		}
+
+		strA = strings.ReplaceAll(strA, "TX_secureCode_XT", EncryptStringByTXDEF(codeT, "char"))
 
 		if strings.HasPrefix(strA, "http") {
 			strA = ToStr(GetWeb(strings.TrimSpace(strA)))
