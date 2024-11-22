@@ -19330,6 +19330,20 @@ func (pA *TK) StatusToString(statusA string) string {
 
 var StatusToString = TKX.StatusToString
 
+func (pA *TK) StatusToMap(statusA string) interface{} {
+	var mapT map[string]string
+
+	errT := jsoniter.Unmarshal([]byte(statusA), &mapT)
+
+	if errT != nil {
+		return errT
+	}
+
+	return mapT
+}
+
+var StatusToMap = TKX.StatusToMap
+
 func (pA *TK) StringsToJson(strsA ...string) string {
 	lenT := len(strsA)
 
