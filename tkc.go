@@ -299,6 +299,39 @@ func (p *SimpleFlexObject) GetMapItem(keyA string, defaultA ...string) string {
 
 }
 
+func (p *SimpleFlexObject) SetMapItem(keyA string, valueA string) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+
+	tmpi, b := p.ItemsMap[keyA]
+
+	if b {
+		p.Items[tmpi] = valueA
+		return ""
+	}
+
+	baseLenT := len(p.Items)
+
+	p.Items = append(p.Items, valueA)
+	p.ItemsMap[keyA] = baseLenT
+	p.KeysMap[baseLenT] = keyA
+
+	return ""
+
+}
+
+func (p *SimpleFlexObject) AddArrayItem(valueA string) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+
+	p.Items = append(p.Items, valueA)
+
+	return ""
+
+}
+
 func (p SimpleFlexObject) String() string {
 	var sb strings.Builder
 
