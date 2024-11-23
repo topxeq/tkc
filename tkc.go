@@ -175,19 +175,56 @@ var IsUndefined = TKX.IsUndefined
 // SimpleFlexObject
 type SimpleFlexObject struct {
 	IsValid  bool
+	SimpleMode bool
 	Items    []string
 	ItemsMap map[string]int
 	KeysMap  map[int]string
 }
 
-func (pA *TK) NewSimpleFlexObject() *SimpleFlexObject {
-	return &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true}
+// example: |||name^^张三$$value1$$age^^16$$remark^^积分赛`+"\u2600\u2600"+`多凉快`+"\u2601\u2601"+`防hjkdjhsfdfsh`+"\u2602\u2602"+`kds1468273☀☀khfjh^*&68435静电☁☁连接☂☂方式$$value2$$回房间看到回复是大家课后反馈复合时空的|||
+// will decode to object &tkc.SimpleFlexObject{IsValid:true, SimpleMode:false, Items:[]string{"张三", "value1", "16", "积分赛|||多凉快$$防hjkdjhsfdfsh^^kds1468273|||khfjh^*&68435静电$$连接^^方式", "value2", "回房间看到回复是大家课后反馈复合时空的"}
+// ☀☀ or \u2600\u2600 for |||
+// ☁☁ or \u2601\u2601 for $$
+// ☂☂ or \u2602\u2602 for ^^
+
+func (pA *TK) NewSimpleFlexObject(argsA ...interface{}) *SimpleFlexObject {
+	objT := &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true, SimpleMode: false}
+	
+	for _, v := range argsA {
+		b, ok := v.(bool)
+		if ok {
+			objT.SimpleMode = b
+			continue
+		}
+		
+		s, ok := v.(string)
+		if ok {
+			objT.Decode(s, true)
+			continue
+		}
+		
+		o, ok := v.(*SimpleFlexObject)
+		if ok {
+			return o.Copy()
+		}
+		
+		s1 := ToStr(v)
+		objT.Decode(s1, true)
+	}
+	
+	return objT
 }
 
 var NewSimpleFlexObject = TKX.NewSimpleFlexObject
 
+func (pA *TK) NewSimpleFlexObjectSimple() *SimpleFlexObject {
+	return &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true, SimpleMode: true}
+}
+
+var NewSimpleFlexObjectSimple = TKX.NewSimpleFlexObjectSimple
+
 func (pA *TK) NewSimpleFlexObjectWithString(strA string, mustA bool) *SimpleFlexObject {
-	rs := &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true}
+	rs := &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true, SimpleMode: false}
 
 	rs.Decode(strA, mustA)
 
@@ -195,6 +232,34 @@ func (pA *TK) NewSimpleFlexObjectWithString(strA string, mustA bool) *SimpleFlex
 }
 
 var NewSimpleFlexObjectWithString = TKX.NewSimpleFlexObjectWithString
+
+func (pA *TK) NewSimpleFlexObjectWithStringComplex(strA string, mustA bool) *SimpleFlexObject {
+	rs := &SimpleFlexObject{Items: make([]string, 0, 10), ItemsMap: make(map[string]int, 0), KeysMap: make(map[int]string, 0), IsValid: true, SimpleMode: false}
+
+	rs.Decode(strA, mustA)
+
+	return rs
+}
+
+var NewSimpleFlexObjectWithStringComplex = TKX.NewSimpleFlexObjectWithStringComplex
+
+func (p *SimpleFlexObject) Copy() *SimpleFlexObject {
+	rs := &SimpleFlexObject{Items: make([]string, len(p.Items)), ItemsMap: make(map[string]int, len(p.ItemsMap)), KeysMap: make(map[int]string, len(p.KeysMap)), IsValid: p.IsValid, SimpleMode: p.SimpleMode}
+	
+	for i, v := range p.Items {
+		rs.Items[i] = v
+	}
+
+	for k, v := range p.ItemsMap {
+		rs.ItemsMap[k] = v
+	}
+
+	for k, v := range p.KeysMap {
+		rs.KeysMap[k] = v
+	}
+
+	return rs
+}
 
 func (p *SimpleFlexObject) Decode(strA string, mustA bool) {
 	listT := strings.Split(strA, "|||")
@@ -226,9 +291,15 @@ func (p *SimpleFlexObject) Decode(strA string, mustA bool) {
 		list2T := strings.Split(list1T[i], "^^")
 
 		if len(list2T) > 1 {
-			p.Items = append(p.Items, list2T[1])
-			p.ItemsMap[list2T[0]] = baseLenT + i
-			p.KeysMap[baseLenT+i] = list2T[0]
+			if p.SimpleMode {
+				p.Items = append(p.Items, list2T[1])
+				p.ItemsMap[list2T[0]] = baseLenT + i
+				p.KeysMap[baseLenT+i] = list2T[0]
+			} else {
+				p.Items = append(p.Items, strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(list2T[1], "\u2600\u2600", "|||"), "\u2601\u2601", "$$"), "\u2602\u2602", "^^"))
+				p.ItemsMap[list2T[0]] = baseLenT + i
+				p.KeysMap[baseLenT+i] = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(list2T[0], "\u2600\u2600", "|||"), "\u2601\u2601", "$$"), "\u2602\u2602", "^^")
+			}
 		} else {
 			p.Items = append(p.Items, list2T[0])
 		}
@@ -243,11 +314,11 @@ func (p *SimpleFlexObject) Encode(defaultA ...string) string {
 		defaultT = defaultA[0]
 	}
 
-	var sbufT strings.Builder
-
 	if !p.IsValid {
 		return defaultT
 	}
+
+	var sbufT strings.Builder
 
 	len0T := len(p.Items)
 
@@ -261,11 +332,20 @@ func (p *SimpleFlexObject) Encode(defaultA ...string) string {
 		tmps1, b := p.KeysMap[i]
 
 		if b {
-			sbufT.WriteString(tmps1)
+			if p.SimpleMode {
+				sbufT.WriteString(tmps1)
+			} else {
+				sbufT.WriteString(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(tmps1, "|||", "\u2600\u2600"), "$$", "\u2601\u2601"), "^^", "\u2602\u2602"))
+			}
+			
 			sbufT.WriteString("^^")
 		}
 
-		sbufT.WriteString(p.Items[i])
+		if p.SimpleMode {
+			sbufT.WriteString(p.Items[i])
+		} else {
+			sbufT.WriteString(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(p.Items[i], "|||", "\u2600\u2600"), "$$", "\u2601\u2601"), "^^", "\u2602\u2602"))
+		}
 
 	}
 
@@ -274,7 +354,7 @@ func (p *SimpleFlexObject) Encode(defaultA ...string) string {
 	return sbufT.String()
 }
 
-func (p *SimpleFlexObject) GetMapItem(keyA string, defaultA ...string) string {
+func (p *SimpleFlexObject) GetItemWithKey(keyA string, defaultA ...string) string {
 	defaultT := ""
 
 	if len(defaultA) > 0 {
@@ -299,7 +379,28 @@ func (p *SimpleFlexObject) GetMapItem(keyA string, defaultA ...string) string {
 
 }
 
-func (p *SimpleFlexObject) SetMapItem(keyA string, valueA string) string {
+func (p *SimpleFlexObject) GetItem(idxA int, defaultA ...string) string {
+	defaultT := ""
+
+	if len(defaultA) > 0 {
+		defaultT = defaultA[0]
+	}
+
+	if !p.IsValid {
+		return defaultT
+	}
+
+	lenT := len(p.Items)
+
+	if (idxA < 0) || (idxA >= lenT) {
+		return defaultT
+	}
+	
+	return p.Items[idxA]
+
+}
+
+func (p *SimpleFlexObject) SetItemWithKey(keyA string, valueA string) string {
 	if !p.IsValid {
 		return "TXERROR:object is invalid"
 	}
@@ -321,7 +422,28 @@ func (p *SimpleFlexObject) SetMapItem(keyA string, valueA string) string {
 
 }
 
-func (p *SimpleFlexObject) AddArrayItem(valueA string) string {
+func (p *SimpleFlexObject) AddItemWithKey(keyA string, valueA string) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+
+	_, b := p.ItemsMap[keyA]
+
+	if b {
+		return "TXERROR:key already exists"
+	}
+
+	baseLenT := len(p.Items)
+
+	p.Items = append(p.Items, valueA)
+	p.ItemsMap[keyA] = baseLenT
+	p.KeysMap[baseLenT] = keyA
+
+	return ""
+
+}
+
+func (p *SimpleFlexObject) AddItem(valueA string) string {
 	if !p.IsValid {
 		return "TXERROR:object is invalid"
 	}
@@ -332,7 +454,302 @@ func (p *SimpleFlexObject) AddArrayItem(valueA string) string {
 
 }
 
+func (p *SimpleFlexObject) InsertItem(valueA string, idxA int) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	lenT := len(p.Items)
+
+	if idxA <= 0 {
+		idxA = 0
+		p.Items = append([]string{valueA}, p.Items...)
+	} else if idxA >= lenT {
+		idxA = lenT
+		p.Items = append(p.Items, valueA)
+	} else {
+		p.Items = append(p.Items[0:idxA], append([]string{valueA}, p.Items[idxA:]...)...)
+//		p.Items = append(tmpl, p.Items[idxA:]...)
+	}
+	
+	ary1T := make([]int, 0, len(p.KeysMap))
+
+	for idxT, _ := range p.KeysMap {
+		if idxT >= idxA {
+			ary1T = append(ary1T, idxT)
+		}
+	}
+	
+	sort.Sort(sort.Reverse(sort.IntSlice(ary1T)))
+	
+	for _, idxT := range ary1T {
+		p.KeysMap[idxT + 1] = p.KeysMap[idxT]
+		p.ItemsMap[p.KeysMap[idxT]] = idxT + 1
+		delete(p.KeysMap, idxT)
+	}
+
+	return ""
+}
+
+func (p *SimpleFlexObject) InsertItemWithKey(keyA string, valueA string, idxA int) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	_, keyOk := p.ItemsMap[keyA]
+	
+	if keyOk {
+		return "TXERROR:key already exists"
+	}
+	
+	lenT := len(p.Items)
+
+	if idxA <= 0 {
+		idxA = 0
+		p.Items = append([]string{valueA}, p.Items...)
+	} else if idxA >= lenT {
+		idxA = lenT
+		p.Items = append(p.Items, valueA)
+	} else {
+		p.Items = append(p.Items[0:idxA], append([]string{valueA}, p.Items[idxA:]...)...)
+//		p.Items = append(tmpl, p.Items[idxA:]...)
+	}
+	
+	ary1T := make([]int, 0, len(p.KeysMap))
+
+	for idxT, _ := range p.KeysMap {
+		if idxT >= idxA {
+			ary1T = append(ary1T, idxT)
+		}
+	}
+	
+	sort.Sort(sort.Reverse(sort.IntSlice(ary1T)))
+	
+	for _, idxT := range ary1T {
+		p.KeysMap[idxT + 1] = p.KeysMap[idxT]
+		p.ItemsMap[p.KeysMap[idxT]] = idxT + 1
+		delete(p.KeysMap, idxT)
+	}
+
+	p.KeysMap[idxA] = keyA
+	p.ItemsMap[keyA] = idxA
+
+	return ""
+}
+
+func (p *SimpleFlexObject) RemoveItemByIndex(idxA int) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	lenT := len(p.Items)
+
+	if (idxA < 0) || (idxA >= lenT) {
+		return "TXERROR:index out of range"
+	}
+	
+	if idxA == 0 {
+		p.Items = p.Items[1:]
+	} else if idxA == lenT - 1 {
+		p.Items = p.Items[0:lenT - 1]
+	} else {
+		p.Items = append(p.Items[0:idxA], p.Items[idxA+1:]...)
+	}
+
+	keyT, ok := p.KeysMap[idxA]
+	
+	if ok {
+		delete(p.KeysMap, idxA)
+		delete(p.ItemsMap, keyT)
+	}
+	
+	ary1T := make([]int, 0, len(p.KeysMap))
+//	ary2T := make([]string, 0, len(p.KeysMap))
+
+	for idxT, _ := range p.KeysMap {
+		if idxT > idxA {
+			ary1T = append(ary1T, idxT)
+//			ary2T = append(ary2T, keyT)
+		}
+	}
+	
+	sort.Ints(ary1T)
+//	Plv(ary1T)
+//	Plv(ary2T)
+	
+	for _, idxT := range ary1T {
+		p.KeysMap[idxT - 1] = p.KeysMap[idxT]
+		p.ItemsMap[p.KeysMap[idxT]] = idxT - 1
+		delete(p.KeysMap, idxT)
+	}
+
+	return ""
+}
+
+func (p *SimpleFlexObject) RemoveItemByKey(keyA string) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	idx0T, ok := p.ItemsMap[keyA]
+	
+	if !ok {
+		return "TXERROR:key not exists"
+	}
+
+	lenT := len(p.Items)
+
+	if (idx0T < 0) || (idx0T >= lenT) {
+		return "TXERROR:index out of range"
+	}
+	
+	if idx0T == 0 {
+		p.Items = p.Items[1:]
+	} else if idx0T == lenT - 1 {
+		p.Items = p.Items[0:lenT - 1]
+	} else {
+		p.Items = append(p.Items[0:idx0T], p.Items[idx0T+1:]...)
+	}
+
+	keyT, ok := p.KeysMap[idx0T]
+	
+	if ok {
+		delete(p.KeysMap, idx0T)
+		delete(p.ItemsMap, keyT)
+	}
+
+	ary1T := make([]int, 0, len(p.KeysMap))
+
+	for idxT, _ := range p.KeysMap {
+		if idxT > idx0T {
+			ary1T = append(ary1T, idxT)
+		}
+	}
+	
+	sort.Ints(ary1T)
+	
+	for _, idxT := range ary1T {
+		p.KeysMap[idxT - 1] = p.KeysMap[idxT]
+		p.ItemsMap[p.KeysMap[idxT]] = idxT - 1
+		delete(p.KeysMap, idxT)
+	}
+
+	return ""
+}
+
+func (v SimpleFlexObject) Size() int {
+	if !v.IsValid {
+		return 0
+	}
+
+	return len(v.Items)
+}
+
+func (v SimpleFlexObject) KeySize() int {
+	if !v.IsValid {
+		return 0
+	}
+
+	return len(v.ItemsMap)
+}
+
+func (v SimpleFlexObject) GetMap() map[string]string {
+	if !v.IsValid {
+		return nil
+	}
+
+	mapT := make(map[string]string, len(v.ItemsMap))
+	
+	for k, kv := range v.ItemsMap {
+		mapT[k] = v.Items[kv]
+	}
+	
+	return mapT
+}
+
+func (v SimpleFlexObject) GetIndexMap() map[string]string {
+	if !v.IsValid {
+		return nil
+	}
+
+	mapT := make(map[string]string, len(v.Items))
+	
+	for i, iv := range v.Items {
+		mapT[IntToStr(i)] = iv
+	}
+	
+	return mapT
+}
+
+func (v SimpleFlexObject) GetItems() []string {
+	if !v.IsValid {
+		return nil
+	}
+
+	aryT := make([]string, 0, len(v.Items))
+	
+	for _, v := range v.Items {
+		aryT = append(aryT, v)
+	}
+	
+	return aryT
+}
+
+func (v SimpleFlexObject) GetItemsWithoutKey() []string {
+	if !v.IsValid {
+		return nil
+	}
+
+	aryT := make([]string, 0, len(v.Items))
+	
+	for i, iv := range v.Items {
+		_, ok := v.KeysMap[i]
+		
+		if !ok {
+			aryT = append(aryT, iv)
+		}
+	}
+	
+	return aryT
+}
+
+func (v SimpleFlexObject) GetItemsWithKey() []string {
+	if !v.IsValid {
+		return nil
+	}
+
+	aryT := make([]string, 0, len(v.Items))
+	
+	for i, iv := range v.Items {
+		_, ok := v.KeysMap[i]
+		
+		if ok {
+			aryT = append(aryT, iv)
+		}
+	}
+	
+	return aryT
+}
+
+func (v SimpleFlexObject) GetKeys() []string {
+	if !v.IsValid {
+		return nil
+	}
+
+	aryT := make([]string, 0, len(v.ItemsMap))
+	
+	for k, _ := range v.ItemsMap {
+		aryT = append(aryT, k)
+	}
+	
+	return aryT
+}
+
 func (p SimpleFlexObject) String() string {
+	if !p.IsValid {
+		return "simpleFlexObject(invalid)"
+	}
+
 	var sb strings.Builder
 
 	sb.WriteString("{")
@@ -24037,6 +24454,8 @@ func (pA *TK) NewObject(argsA ...interface{}) interface{} {
 		}
 
 		return NewTXResult("success", "")
+	case "flex", "simpleflexobject":
+		return NewSimpleFlexObject(argsA[1:]...)
 	case "tree", "btree":
 		if lenT < 2 {
 			return Errf("not enough parameters")
