@@ -10662,7 +10662,12 @@ func (pA *TK) SaveStringToFile(strA string, fileA string) string {
 
 	defer file.Close()
 	wFile := bufio.NewWriter(file)
-	wFile.WriteString(strA)
+	_, errT := wFile.WriteString(strA)
+	
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+	
 	wFile.Flush()
 
 	return ""
@@ -10678,7 +10683,11 @@ func (pA *TK) SaveStringToFileE(strA string, fileA string) error {
 
 	defer file.Close()
 	wFile := bufio.NewWriter(file)
-	wFile.WriteString(strA)
+	_, errT := wFile.WriteString(strA)
+	if errT != nil {
+		return errT
+	}
+	
 	wFile.Flush()
 
 	return nil
@@ -10694,13 +10703,17 @@ func (pA *TK) AppendStringToFile(strA string, fileA string) string {
 		return GenerateErrorString(err.Error())
 	}
 
+	defer fileT.Close()
+
 	writerT := bufio.NewWriter(fileT)
 
-	writerT.WriteString(strA)
+	_, errT := writerT.WriteString(strA)
 
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+	
 	writerT.Flush()
-
-	defer fileT.Close()
 
 	return ""
 }
@@ -10826,7 +10839,11 @@ func (pA *TK) SaveStringList(strListA []string, fileA string) string {
 	defer file.Close()
 
 	wFile := bufio.NewWriter(file)
-	wFile.WriteString(JoinLines(strListA))
+	_, errT := wFile.WriteString(JoinLines(strListA))
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+	
 	wFile.Flush()
 
 	return ""
@@ -10847,7 +10864,11 @@ func (pA *TK) SaveStringListWin(strListA []string, fileA string) string {
 	defer file.Close()
 
 	wFile := bufio.NewWriter(file)
-	wFile.WriteString(JoinLinesBySeparator(strListA, "\r\n"))
+	_, errT := wFile.WriteString(JoinLinesBySeparator(strListA, "\r\n"))
+	if errT != nil {
+		return ErrorToString(errT)
+	}
+	
 	wFile.Flush()
 
 	return ""
