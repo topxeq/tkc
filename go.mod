@@ -18,6 +18,8 @@ require (
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mozillazg/go-pinyin v0.20.0
 	github.com/pquerna/otp v1.4.0
+	github.com/tidwall/gjson v1.18.0
+	github.com/tidwall/pretty v1.2.1
 	github.com/topxeq/gods v0.0.0-20220125023913-b5718bb0c704
 	github.com/topxeq/goph v0.0.0-20240813015542-ebac0794140b
 	github.com/topxeq/mahonia v0.0.0-20190828060648-12b0599ddd1a
@@ -56,6 +58,7 @@ require (
 	github.com/pkg/sftp v1.13.4 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/tidwall/match v1.1.1 // indirect
 	github.com/topxeq/countingwriter v0.0.0-20230115115152-84660be6de09 // indirect
 	github.com/ulikunitz/xz v0.5.9 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect

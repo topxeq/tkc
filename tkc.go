@@ -82,6 +82,8 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/beevik/etree"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/pretty"
 	"github.com/topxeq/mahonia"
 	"github.com/topxeq/socks"
 	"github.com/topxeq/uuid"
@@ -8139,7 +8141,6 @@ func (pA *TK) IfSwitchExists(argsA []string, switchStrA string) bool {
 		if argT == switchStrA {
 			return true
 		}
-
 	}
 
 	return false
@@ -11862,6 +11863,35 @@ func (pA *TK) ToJSONWithDefault(objA interface{}, defaultA string) string {
 
 var ToJSONWithDefault = TKX.ToJSONWithDefault
 
+func (pA *TK) FormatJson(jsonA string, optsA ...string) string {
+	if len(optsA) > 0 {
+		optsT := &pretty.Options{
+			Width: ToInt(GetSwitch(optsA, "-width=", "80"), 80),
+			Prefix: GetSwitch(optsA, "-prefix=", ""),
+			Indent: GetSwitch(optsA, "-indent=", "  "),
+			SortKeys: IfSwitchExists(optsA, "-sort"),
+		}
+		
+		rs := pretty.PrettyOptions([]byte(jsonA), optsT)
+
+		return string(rs)
+	}
+	
+	rs := pretty.Pretty([]byte(jsonA))
+
+	return string(rs)
+}
+
+var FormatJson = TKX.FormatJson
+
+func (pA *TK) CompactJson(jsonA string, optsA ...string) string {
+	rs := pretty.Ugly([]byte(jsonA))
+
+	return string(rs)
+}
+
+var CompactJson = TKX.CompactJson
+
 // ToJSONIndent use fast method
 func (pA *TK) ToJSONIndent(objA interface{}) (string, error) {
 	// var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -12159,11 +12189,30 @@ func (pA *TK) GetJSONNodeAny(jsonA string, pathA ...interface{}) jsoniter.Any {
 
 var GetJSONNodeAny = TKX.GetJSONNodeAny
 
-func (pA *TK) GetJSONNodeString(jsonA string, pathA ...interface{}) string {
-	return jsoniter.Get([]byte(jsonA), pathA...).ToString()
+// pathA refer to github.com/tidwall/gjson
+func (pA *TK) GetJSONNodeString(jsonA string, pathA string) string {
+//	return jsoniter.Get([]byte(jsonA), pathA...).ToString()
+	return gjson.Get(jsonA, pathA).String()
 }
 
 var GetJSONNodeString = TKX.GetJSONNodeString
+
+// pathA refer to github.com/tidwall/gjson
+func (pA *TK) GetJSONNodeStrings(jsonA string, pathA string) interface{} {
+	rs := gjson.Get(jsonA, pathA).Array()
+	
+	lenT := len(rs)
+	
+	aryT := make([]string, 0, lenT) 
+	
+	for i := 0; i < lenT; i ++ {
+		aryT = append(aryT, rs[i].String())
+	}
+	
+	return aryT
+}
+
+var GetJSONNodeStrings = TKX.GetJSONNodeStrings
 
 func (pA *TK) GetJSONSubNodeAny(jsonNodeA jsoniter.Any, pathA ...interface{}) jsoniter.Any {
 	aryT := make([]interface{}, 0, len(pathA))
