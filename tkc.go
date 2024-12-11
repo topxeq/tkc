@@ -12159,6 +12159,12 @@ func (pA *TK) GetJSONNodeAny(jsonA string, pathA ...interface{}) jsoniter.Any {
 
 var GetJSONNodeAny = TKX.GetJSONNodeAny
 
+func (pA *TK) GetJSONNodeString(jsonA string, pathA ...interface{}) string {
+	return jsoniter.Get([]byte(jsonA), pathA...).ToString()
+}
+
+var GetJSONNodeString = TKX.GetJSONNodeString
+
 func (pA *TK) GetJSONSubNodeAny(jsonNodeA jsoniter.Any, pathA ...interface{}) jsoniter.Any {
 	aryT := make([]interface{}, 0, len(pathA))
 
