@@ -3,6 +3,7 @@ package tkc
 // build 202406180001
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"compress/gzip"
@@ -30418,3 +30419,97 @@ func imageToNRGBA(src image.Image) *image.NRGBA {
 	draw.Draw(m, m.Bounds(), src, bounds.Min, draw.Src)
 	return m
 }
+
+// docx related
+
+// GetXmlContent extracts the XML content from a .docx file.
+func GetXmlContent(docxFile string) ([]byte, error) {
+	r, err := zip.OpenReader(docxFile)
+	if err != nil {
+		return nil, fmt.Errorf("error opening docx file: %w", err)
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if f.Name == "word/document.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, fmt.Errorf("error opening document.xml: %w", err)
+			}
+			defer rc.Close()
+
+			content, err := io.ReadAll(rc) // Changed from ioutil.ReadAll to io.ReadAll
+			if err != nil {
+				return nil, fmt.Errorf("error reading document.xml: %w", err)
+			}
+
+			return content, nil
+		}
+	}
+
+	return nil, fmt.Errorf("document.xml not found")
+}
+
+// GetTextByParagraph parses XML content and extracts text by paragraphs.
+func GetTextByParagraph(content []byte) ([]string, error) {
+	decoder := xml.NewDecoder(bytes.NewReader(content))
+	var resultStrings []string
+	var builder strings.Builder 
+	inParagraph := false
+
+	for {
+		t, err := decoder.Token()
+		if t == nil {
+			break
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("error decoding XML: %w", err)
+		}
+
+		switch se := t.(type) {
+		case xml.StartElement:
+//			Pl("<ELM START> %#v", se)
+			if se.Name.Local == "p" {
+				inParagraph = true
+				builder.Reset() 
+			}
+		case xml.CharData:
+//			Pl("<ELM CharData> %#v", se)
+			if inParagraph {
+				builder.WriteString(string(se)) 
+			}
+		case xml.EndElement:
+//			Pl("<ELM END> %#v", se)
+//			Pl("<P END> %#v", builder.String())
+			if se.Name.Local == "p" { //  && builder.Len() > 0
+				resultStrings = append(resultStrings, SplitLines(builder.String())...)
+				inParagraph = false
+			}
+		default:
+//			Pl("<ELM OTHER> %#v", se)
+			break
+		
+		}
+	}
+
+	return resultStrings, nil
+}
+
+func (pA *TK) DocxToText(filePathA string, optsA ...string) interface{} {
+	xmlContent, err := GetXmlContent(filePathA)
+    if err != nil {
+        return err
+    }
+
+    texts, err := GetTextByParagraph(xmlContent)
+    if err != nil {
+        return err
+    }
+
+    return texts
+}
+
+var DocxToText = TKX.DocxToText
