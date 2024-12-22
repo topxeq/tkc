@@ -5598,12 +5598,26 @@ func (pA *TK) FormatTime(timeA time.Time, formatA ...string) string {
 		formatT = "2006-01-02 15:04:05"
 	} else if formatT == "compact" || formatT == "-compact" {
 		formatT = TimeFormatCompact
+	} else if formatT == "full" || formatT == "-full" {
+		formatT = TimeFormatMS
 	}
 
 	return timeA.Format(formatT)
 }
 
 var FormatTime = TKX.FormatTime
+
+func (pA *TK) TimeAddSecs(timeA time.Time, secsA float64) time.Time {
+	return timeA.Add(time.Duration(secsA * float64(time.Second)))
+}
+
+var TimeAddSecs = TKX.TimeAddSecs
+
+func (pA *TK) TimeAddDate(timeA time.Time, yearA int, monthA int, dayA int) time.Time {
+	return timeA.AddDate(yearA, monthA, dayA)
+}
+
+var TimeAddDate = TKX.TimeAddDate
 
 // IsYesterday 判断字符串是否是昨天，formatA默认为"20060102"格式
 func (pA *TK) IsYesterday(dateStrA string, formatA string) bool {
