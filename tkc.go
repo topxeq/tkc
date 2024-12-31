@@ -6911,7 +6911,7 @@ func (pA *TK) RunWinFileWithSystemDefault(fileA string) string {
 
 var RunWinFileWithSystemDefault = TKX.RunWinFileWithSystemDefault
 
-// SystemCmd run system command, such as "cmd /c dir", "cmd /k copy a.txt b.txt".
+// SystemCmd runs a system command, such as "cmd /c dir", "cmd /k copy a.txt b.txt".
 func (pA *TK) SystemCmd(cmdA string, argsA ...string) string {
 	var out bytes.Buffer
 
@@ -6927,6 +6927,22 @@ func (pA *TK) SystemCmd(cmdA string, argsA ...string) string {
 }
 
 var SystemCmd = TKX.SystemCmd
+
+// SystemCmdDetached runs a system command and detaches it, such as "cmd /c dir", "cmd /k copy a.txt b.txt".
+func (pA *TK) SystemCmdDetached(cmdA string, argsA ...string) string {
+	cmd := exec.Command(cmdA, argsA...)
+
+	errT := cmd.Start()
+	if errT != nil {
+		return GenerateErrorStringF("failed to start new process and detach: %v", errT)
+	}
+	
+	cmd.Process.Release()
+
+	return ""
+}
+
+var SystemCmdDetached = TKX.SystemCmdDetached
 
 // NewSSHClient create SSH client with fewer settings
 func (pA *TK) NewSSHClient(hostA string, portA interface{}, userA string, passA string) (*goph.Client, error) {
