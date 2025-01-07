@@ -382,6 +382,32 @@ func (p *SimpleFlexObject) GetItemWithKey(keyA string, defaultA ...string) strin
 
 }
 
+func (p *SimpleFlexObject) KeyExists(keyA string) bool {
+	if !p.IsValid {
+		return false
+	}
+
+	_, b := p.ItemsMap[keyA]
+
+	return b
+	
+}
+
+func (p *SimpleFlexObject) GetIndexByKey(keyA string) int {
+	if !p.IsValid {
+		return -1
+	}
+
+	idxT, b := p.ItemsMap[keyA]
+	
+	if !b {
+		return -1
+	}
+
+	return idxT
+	
+}
+
 func (p *SimpleFlexObject) GetItem(idxA int, defaultA ...string) string {
 	defaultT := ""
 
@@ -490,6 +516,38 @@ func (p *SimpleFlexObject) InsertItem(valueA string, idxA int) string {
 		p.ItemsMap[p.KeysMap[idxT]] = idxT + 1
 		delete(p.KeysMap, idxT)
 	}
+
+	return ""
+}
+
+func (p *SimpleFlexObject) SetItem(valueA string, idxA int) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	lenT := len(p.Items)
+
+	if idxA < 0 || idxA >= lenT {
+		return fmt.Sprintf("TXERROR:out of index (%v/%v)", idxA, lenT)
+	}
+	
+	p.Items[idxA] = valueA
+
+	return ""
+}
+
+func (p *SimpleFlexObject) SetItemByKey(valueA string, keyA string) string {
+	if !p.IsValid {
+		return "TXERROR:object is invalid"
+	}
+	
+	idxT, keyOk := p.ItemsMap[keyA]
+	
+	if !keyOk {
+		return "TXERROR:key not exists"
+	}
+	
+	p.Items[idxT] = valueA
 
 	return ""
 }
