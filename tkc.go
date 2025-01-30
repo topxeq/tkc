@@ -11155,6 +11155,81 @@ func (pA *TK) ReadLineFromBufioReader(readerA *bufio.Reader) (string, bool, erro
 
 var ReadLineFromBufioReader = TKX.ReadLineFromBufioReader
 
+//func (pA *TK) ReadPackageFromReader(readerA io.Reader, remainStateA int, remainA string, startA string, endA string, bufLenA int) interface{} {
+//	if readerA == nil {
+//		return fmt.Errorf("nil reader")
+//	}
+//	
+//	if bufLenA <= 0 {
+//		bufLenA = 100
+//	}
+//	
+//	bufT := make([]byte, bufLenA)
+//	
+//	oneBufT := make([]byte, 0, bufLenA)
+//	
+//	if len(remainA) > 0 {
+//		oneBufT = append(oneBufT, ([]byte(remainA))...)
+//	}
+//	
+//	stateT := remainStateA // 0: start, 1: has prefix
+//	
+//	startBytesT := []byte(startA)
+//	
+//	lenStartBytesT := len(startBytesT)
+//	
+//	for true {
+//		n, errT := readerA.Read(bufT)
+//		
+//		if errT != nil {
+////			if errT == io.EOF {
+////				if stateT == 0 {
+////					return io.EOF
+////				}
+////				
+////				if stateT == 1 {
+////					return io.EOF
+////				}
+////			}
+//			
+//			return errT
+//		}
+//		
+//		if n <= 0 {
+//			continue
+//		}
+//		
+//		if stateT == 0 {
+//			idxT := bytes.Index(bufT, startBytesT)
+//			
+//			if idxT < 0 {
+//				continue
+//			}
+//			
+//			if n > lenStartBytesT {
+//					
+//			}
+//			
+//			stateT = 
+//		}
+//	}
+//
+//	strT, errT := readerA.ReadString('\n')
+//
+//	if errT != nil {
+//		if errT == io.EOF {
+//			return strT, true, nil
+//		}
+//
+//		return strT, false, errT
+//	}
+//
+//	return strT, false, nil
+//
+//}
+//
+//var ReadPackageFromReader = TKX.ReadPackageFromReader
+
 func (pA *TK) RestoreLineEnds(strA string, replacementA string) string {
 	rs := strings.Replace(strA, replacementA, "\n", -1)
 	return rs
@@ -11305,6 +11380,53 @@ func (pA *TK) BytesContains(dataA []byte, subA interface{}) bool {
 }
 
 var BytesContains = TKX.BytesContains
+
+func (pA *TK) BytesIndex(dataA []byte, subA interface{}) int {
+	if dataA == nil || len(dataA) < 1 {
+		return -1
+	}
+
+	switch nv := subA.(type) {
+	case []byte:
+		if len(dataA) < len(nv) {
+			return -1
+		}
+
+		return bytes.Index(dataA, nv)
+	case []rune:
+		nv1 := []byte(string(nv))
+		if len(dataA) < len(nv1) {
+			return -1
+		}
+
+		return bytes.Index(dataA, nv1)
+	case string:
+		nv1 := []byte(nv)
+		if len(dataA) < len(nv1) {
+			return -1
+		}
+
+		return bytes.Index(dataA, nv1)
+	case []interface{}:
+		lenT := len(nv)
+
+		if len(dataA) < lenT {
+			return -1
+		}
+
+		bufT := make([]byte, lenT)
+
+		for i := 0; i < lenT; i++ {
+			bufT[i] = ToByte(nv[i])
+		}
+
+		return bytes.Index(dataA, bufT)
+	}
+
+	return -1
+}
+
+var BytesIndex = TKX.BytesIndex
 
 // 双行列表相关 dual list related
 
