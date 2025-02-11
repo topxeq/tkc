@@ -73,6 +73,7 @@ import (
 	"github.com/topxeq/gods/trees/btree"
 	"github.com/topxeq/regexpx"
 	"github.com/topxeq/xmlx"
+	"github.com/topxeq/docxrepl"
 
 	"github.com/aarzilli/sandblast"
 	"github.com/topxeq/goph"
@@ -30723,3 +30724,38 @@ func (pA *TK) DocxToText(filePathA string, optsA ...string) interface{} {
 }
 
 var DocxToText = TKX.DocxToText
+
+func (pA *TK) ReplacePatternsInDocxBytes(bytesA []byte, replacesA []string, optsA ...string) interface{} {
+	doc, err := docxrepl.OpenBytes(bytesA)
+	if err != nil {
+		return err
+	}
+	
+	replaceMap := make(map[string]interface{})
+	
+	lenT := len(replacesA) / 2
+	
+	for i := 0; i < lenT; i ++ {
+		replaceMap[replacesA[i * 2]] = replacesA[i * 2 + 1]
+	}
+
+	err = doc.ReplaceAll(replaceMap)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not all placeholders were replaced") {
+			return err
+		}
+	}
+
+	var bufT bytes.Buffer
+
+	err = doc.Write(&bufT)
+
+	if err != nil {
+		return err
+	}
+
+	return bufT.Bytes()
+}
+
+var ReplacePatternsInDocxBytes = TKX.ReplacePatternsInDocxBytes
+
