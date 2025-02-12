@@ -30738,6 +30738,18 @@ func (pA *TK) ReplacePatternsInDocxBytes(bytesA []byte, replacesA []string, opts
 	for i := 0; i < lenT; i ++ {
 		replaceMap[replacesA[i * 2]] = replacesA[i * 2 + 1]
 	}
+	
+	openDelimiter := GetSwitch(optsA, "-startRune=", "{")
+	closeDelimiter := GetSwitch(optsA, "-endRune=", "}")
+	
+	err = docxrepl.SetDelimiter(openDelimiter, closeDelimiter)
+	if err != nil {
+		return err
+	}
+
+	if IfSwitchExists(optsA, "-refreshOnly") {
+		return bytesA
+	}
 
 	err = doc.ReplaceAll(replaceMap)
 	if err != nil {
