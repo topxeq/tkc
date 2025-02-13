@@ -20,7 +20,7 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/pretty v1.2.1
-	github.com/topxeq/docxrepl v0.0.0-20250212063339-ba67f7344b69
+	github.com/topxeq/docxrepl v0.0.0-20250213015321-4bb6fda31782
 	github.com/topxeq/gods v0.0.0-20220125023913-b5718bb0c704
 	github.com/topxeq/goph v0.0.0-20240813015542-ebac0794140b
 	github.com/topxeq/mahonia v0.0.0-20190828060648-12b0599ddd1a
