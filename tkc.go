@@ -37,6 +37,7 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -15991,6 +15992,31 @@ func (pA *TK) PostRequestX(urlA, reqBodyA string, customHeadersA string, timeout
 }
 
 var PostRequestX = TKX.PostRequestX
+
+func (pA *TK) PrepareMultiPartFileFromBytes(fieldNameA, fileNameA string, bytesA []byte) (string, []byte, error) {
+	var b bytes.Buffer
+    w := multipart.NewWriter(&b)
+	
+	r := bytes.NewReader([]byte(bytesA))
+	
+	var fw io.Writer
+	
+	var err error
+
+	if fw, err = w.CreateFormFile(fieldNameA, fileNameA); err != nil {
+		return "", nil, fmt.Errorf("failed to create field: (%v) %v", fieldNameA, err)
+	}
+	
+	if _, err = io.Copy(fw, r); err != nil {
+		return "", nil, fmt.Errorf("failed to set field: (%v) %v", fieldNameA, err)
+	}
+	
+    w.Close()
+	
+	return w.FormDataContentType(), b.Bytes(), nil
+}
+
+var PrepareMultiPartFileFromBytes = TKX.PrepareMultiPartFileFromBytes
 
 // PutRequestX : Put Request with custom headers
 func (pA *TK) PutRequestX(urlA, reqBodyA string, customHeadersA string, timeoutSecsA time.Duration, optsA ...string) (string, error) {
