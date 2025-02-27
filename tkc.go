@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"container/list"
+	"context"
 	"crypto"
 	"crypto/aes"
 	"crypto/md5"
@@ -81,6 +82,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/html"
+	
+	"github.com/mholt/archives"
 
 	"github.com/atotto/clipboard"
 	"github.com/beevik/etree"
@@ -6829,7 +6832,7 @@ func (pA *TK) EnsureBasePathInHome(nameA string) string {
 
 var EnsureBasePathInHome = TKX.EnsureBasePathInHome
 
-// CreateTempFile dirA如果为空，则在系统临时目录下。patternA 可以是example或example*.txt这样
+// CreateTempFile dirA如果为空，则在系统临时目录下。patternA 可以是example或example*.txt这样，会自动替换*为随机字符串，创建者负责删除
 func (pA *TK) CreateTempFile(dirA string, patternA string, optsA ...string) (string, error) {
 	content := []byte("")
 	tmpfile, err := os.CreateTemp(dirA, patternA)
@@ -6855,6 +6858,18 @@ func (pA *TK) CreateTempFile(dirA string, patternA string, optsA ...string) (str
 }
 
 var CreateTempFile = TKX.CreateTempFile
+
+// CreateTempDir dirA如果为空，则在系统临时目录下。patternA 可以是example或example*这样，会自动替换*为随机字符串，创建者负责删除
+func (pA *TK) CreateTempDir(dirA string, patternA string, optsA ...string) (string, error) {
+	tmpDir, err := os.MkdirTemp(dirA, patternA)
+	if err != nil {
+		return "", err
+	}
+
+	return tmpDir, nil
+}
+
+var CreateTempDir = TKX.CreateTempDir
 
 func (pA *TK) CopyFile(src, dst string, optsA ...string) error {
 
@@ -18726,10 +18741,22 @@ func (pA *TK) ConvertToUTF8(srcA []byte, srcEncA string) string {
 var ConvertToUTF8 = TKX.ConvertToUTF8
 
 // ConvertStringToUTF8 转换GB18030编码等字符串为UTF-8字符串
-func (pA *TK) ConvertStringToUTF8(srcA string, srcEncA string) string {
+func (pA *TK) ConvertStringToUTF8(srcA string, srcEncA string) (result string) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			result = srcA
+			return
+		}
+	}()
+
 	srcEncT := srcEncA
 
 	if srcEncT == "" {
+		srcEncT = "GB18030"
+	}
+	
+	if strings.ToLower(srcEncT) == "gb2312" {
 		srcEncT = "GB18030"
 	}
 
@@ -30751,6 +30778,40 @@ func (pA *TK) DocxToText(filePathA string, optsA ...string) interface{} {
 
 var DocxToText = TKX.DocxToText
 
+func (pA *TK) DocxBytesToText(bytesA []byte, optsA ...string) interface{} {
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
+	readerT := bytes.NewReader(bytesA)
+
+	fsys, err := archives.FileSystem(ctx, "a.docx", readerT)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+	
+	f, err := fsys.Open("word/document.xml")
+	if err != nil {
+		return fmt.Errorf("failed to get document.xml: %v", err)
+	}
+	
+	defer f.Close()
+	
+	xmlContent, err := io.ReadAll(f)
+	if err != nil {
+		return fmt.Errorf("failed to read document.xml: %v", err)
+	}
+
+    texts, err := GetTextByParagraph(xmlContent)
+    if err != nil {
+		return fmt.Errorf("failed to get text paragraph: %v", err)
+    }
+
+    return texts
+}
+
+var DocxBytesToText = TKX.DocxBytesToText
+
 func (pA *TK) ReplacePatternsInDocxBytes(bytesA []byte, replacesA []string, optsA ...string) interface{} {
 	doc, err := docxrepl.OpenBytes(bytesA)
 	if err != nil {
@@ -30796,4 +30857,109 @@ func (pA *TK) ReplacePatternsInDocxBytes(bytesA []byte, replacesA []string, opts
 }
 
 var ReplacePatternsInDocxBytes = TKX.ReplacePatternsInDocxBytes
+
+func (pA *TK) GetFileListInZip(filePathA string, optsA ...string) interface{} {
+	r, err := zip.OpenReader(filePathA)
+	if err != nil {
+		return err
+	}
+	
+	defer r.Close()
+	
+	listT := make([]string, 0, len(r.File))
+	
+	encT := GetSwitch(optsA, "-encode=", "")
+
+	for _, f := range r.File {
+		if !utf8.ValidString(f.Name) {
+			listT = append(listT, ConvertStringToUTF8(f.Name, encT))
+		} else {
+			listT = append(listT, f.Name)
+		}
+	}
+	
+	return listT
+}
+
+var GetFileListInZip = TKX.GetFileListInZip
+
+func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{} {
+
+	if strings.HasSuffix(filePathA, ".zip") {
+		return GetFileListInZip(filePathA, optsA...)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fsys, err := archives.FileSystem(ctx, filePathA, nil)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+//	f, err := fsys.Open(filePathA)
+//	if err != nil {
+//		return err
+//	}
+//	
+//	defer f.Close()
+	
+	listT := make([]string, 0, 10)
+	
+//	if dir, ok := fsys.(fs.ReadDirFile); ok {
+//		// 0 gets all entries, but you can pass > 0 to paginate
+//		entries, err := dir.ReadDir(0)
+//		if err != nil {
+//			return err
+//		}
+//		
+//		for _, e := range entries {
+//			listT = append(listT, e.Name())
+////			fmt.Println(e.Extension())
+//		}
+//	}
+//	
+//	return listT
+	
+	err1 := fs.WalkDir(fsys, ".", func(pathA string, deA fs.DirEntry, errA error) error {
+		if errA != nil {
+			return fmt.Errorf("failed to walk dir: %v", errA)
+		}
+		
+//		if path == ".git" {
+//			return fs.SkipDir
+//		}
+
+		if !deA.IsDir() {
+			encT := GetSwitch(optsA, "-encode=", "")
+			
+			if !utf8.ValidString(pathA) {
+				listT = append(listT, ConvertStringToUTF8(pathA, encT))
+			} else {
+				listT = append(listT, pathA)
+			}
+		}
+
+		return nil
+	})
+	
+	if err1 != nil {
+		return fmt.Errorf("failed after walking dir: %v(%#v)", err1, listT)
+	}
+
+	return listT
+}
+
+var GetFileListInArchive = TKX.GetFileListInArchive
+
+func (pA *TK) IsUtf8Str(strA string) bool {
+	return utf8.ValidString(strA)
+}
+
+var IsUtf8Str = TKX.IsUtf8Str
+
+func (pA *TK) IsUtf8Bytes(bytesA []byte) bool {
+	return utf8.Valid(bytesA)
+}
+
+var IsUtf8Bytes = TKX.IsUtf8Bytes
 
