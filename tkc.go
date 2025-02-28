@@ -30951,6 +30951,204 @@ func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{
 
 var GetFileListInArchive = TKX.GetFileListInArchive
 
+func (pA *TK) LoadBytesInArchive(archivePathA string, filePathA string, optsA ...string) interface{} {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+
+	fileT, err := fsys.Open(filePathA)
+	if err != nil {
+		return err
+	}
+	
+	defer fileT.Close()
+	
+	limitT := ToInt(GetSwitch(optsA, "-limit=", "0"), 0)
+	
+	if limitT <= 0 {
+		fileContentT, err := io.ReadAll(fileT)
+		if err != nil {
+			return err
+		}
+
+		return fileContentT
+	}
+
+	bufT := make([]byte, limitT)
+	nn, err := fileT.Read(bufT)
+	if err != nil {
+		fmt.Errorf("failed to read archive: %v", err)
+	}
+	
+	if nn != len(bufT) {
+		fmt.Errorf("failed to read archive: %v", err)
+	}
+
+	return bufT
+}
+
+var LoadBytesInArchive = TKX.LoadBytesInArchive
+
+func (pA *TK) ExtractFileInArchive(archivePathA string, filePathA string, toPathA string, optsA ...string) interface{} {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+
+	fileT, err := fsys.Open(filePathA)
+	if err != nil {
+		return err
+	}
+	
+	defer fileT.Close()
+
+	forceT := IfSwitchExists(optsA, "-force")
+
+	if !forceT {
+		if IfFileExists(toPathA) {
+			return fmt.Errorf("file %s already exists", toPathA)
+		}
+	}
+
+	destination, err := os.Create(toPathA)
+	if err != nil {
+		return fmt.Errorf("failed to create dest file: %v", err)
+	}
+
+	defer destination.Close()
+
+	bufferSizeT := ToInt(GetSwitch(optsA, "-bufferSize=", ""), 1000000)
+
+	if bufferSizeT <= 0 {
+		bufferSizeT = 1000000
+	}
+
+	buf := make([]byte, bufferSizeT)
+	for {
+		n, err := fileT.Read(buf)
+
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		if _, err := destination.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+
+	return ""
+}
+
+var ExtractFileInArchive = TKX.ExtractFileInArchive
+
+func (pA *TK) ExtractArchive(archivePathA string, toPathA string, optsA ...string) interface{} {
+
+	archiveFile, openErr := os.Open(archivePathA)
+	if openErr != nil {
+		return fmt.Errorf("open archive %s: %w", archivePathA, openErr)
+	}
+	defer archiveFile.Close()
+	
+	errT := EnsureMakeDirsE(toPathA)
+	if errT != nil {
+		return fmt.Errorf("failed to create dest dir: %v(%v)", errT, toPathA)
+	}
+	
+	if !IfFileExists(toPathA) {
+		return fmt.Errorf("failed to create dest dir: %v", toPathA)
+	}
+
+	format, input, identifyErr := archives.Identify(context.Background(), archivePathA, archiveFile)
+	if identifyErr != nil {
+		return fmt.Errorf("identify format: %w", identifyErr)
+	}
+
+	extractor, ok := format.(archives.Extractor)
+	if !ok {
+		return fmt.Errorf("unsupported format for extraction")
+	}
+	
+	forceT := IfSwitchExists(optsA, "-force")
+	
+	noFileDirT := IfSwitchExists(optsA, "-noFileDir")
+
+	err := extractor.Extract(context.Background(), input, func(ctx context.Context, f archives.FileInfo) error {
+		// do something with the file here; or, if you only want a specific file or directory,
+		// just return until you come across the desired f.NameInArchive value(s)
+		
+		var dstPath string
+		
+		if noFileDirT {
+			dstPath = filepath.Join(toPathA, filepath.Base(f.NameInArchive))
+		} else {
+			dstPath = filepath.Join(toPathA, f.NameInArchive)
+		}
+		
+		if f.IsDir() {
+			errT := EnsureMakeDirsE(dstPath)
+			if errT != nil {
+				return fmt.Errorf("failed to make directory: %v", dstPath)
+			}
+			return nil
+		}
+		
+		if !forceT {
+			if IfFileExists(dstPath) {
+				return fmt.Errorf("file already exists: %v", dstPath)
+			}
+		}
+		
+		if f.LinkTarget != "" {
+			return nil
+		}
+		
+		dirT := filepath.Dir(dstPath)
+		errT := EnsureMakeDirsE(dirT)
+		if errT != nil {
+			return fmt.Errorf("failed to make directory: %v", dirT)
+		}
+		
+		reader, openErr := f.Open()
+		if openErr != nil {
+			return fmt.Errorf("open file: %w", openErr)
+		}
+		defer reader.Close()
+
+		dstFile, createErr := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY, f.Mode())
+		if createErr != nil {
+			return fmt.Errorf("create file: %w", createErr)
+		}
+		defer dstFile.Close()
+
+		if _, copyErr := io.Copy(dstFile, reader); copyErr != nil {
+			return fmt.Errorf("copy: %w", copyErr)
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		return fmt.Errorf("failed to extract file: %w", err)
+	}
+	
+	return ""
+}
+
+var ExtractArchive = TKX.ExtractArchive
+
 func (pA *TK) IsUtf8Str(strA string) bool {
 	return utf8.ValidString(strA)
 }
