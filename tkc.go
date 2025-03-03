@@ -30871,7 +30871,7 @@ func (pA *TK) GetFileListInZip(filePathA string, optsA ...string) interface{} {
 	encT := GetSwitch(optsA, "-encode=", "")
 
 	for _, f := range r.File {
-		if !utf8.ValidString(f.Name) {
+		if f.NonUTF8 || f.Flags == 0 || !utf8.ValidString(f.Name) {
 			listT = append(listT, ConvertStringToUTF8(f.Name, encT))
 		} else {
 			listT = append(listT, f.Name)
@@ -30883,9 +30883,44 @@ func (pA *TK) GetFileListInZip(filePathA string, optsA ...string) interface{} {
 
 var GetFileListInZip = TKX.GetFileListInZip
 
+func (pA *TK) GetFileListInZipBytes(bytesA []byte, optsA ...string) interface{} {
+	readerT := bytes.NewReader([]byte(bytesA))
+	
+	if readerT == nil {
+		return fmt.Errorf("failed to init reader")
+	}
+	
+	r, err := zip.NewReader(readerT, int64(len(bytesA)))
+	if err != nil {
+		return err
+	}
+	
+	listT := make([]string, 0, len(r.File))
+	
+	encT := GetSwitch(optsA, "-encode=", "")
+
+	for _, f := range r.File {
+		if f.NonUTF8 || f.Flags == 0 || !utf8.ValidString(f.Name) {
+			listT = append(listT, ConvertStringToUTF8(f.Name, encT))
+		} else {
+			listT = append(listT, f.Name)
+		}
+	}
+	
+	return listT
+}
+
+var GetFileListInZipBytes = TKX.GetFileListInZipBytes
+
 func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{} {
 
 	if strings.HasSuffix(filePathA, ".zip") {
+		return GetFileListInZip(filePathA, optsA...)
+	}
+	
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	if formatT == "zip" {
 		return GetFileListInZip(filePathA, optsA...)
 	}
 
@@ -30950,6 +30985,82 @@ func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{
 }
 
 var GetFileListInArchive = TKX.GetFileListInArchive
+
+func (pA *TK) GetFileListInArchiveBytes(bytesA []byte, optsA ...string) interface{} {
+
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	if formatT == "zip" {
+		return GetFileListInZipBytes(bytesA, optsA...)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
+	fakeFileNameT := ""
+	
+	if formatT != "" {
+		fakeFileNameT = "a." + formatT
+	}
+
+	fsys, err := archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+//	f, err := fsys.Open(filePathA)
+//	if err != nil {
+//		return err
+//	}
+//	
+//	defer f.Close()
+	
+	listT := make([]string, 0, 10)
+	
+//	if dir, ok := fsys.(fs.ReadDirFile); ok {
+//		// 0 gets all entries, but you can pass > 0 to paginate
+//		entries, err := dir.ReadDir(0)
+//		if err != nil {
+//			return err
+//		}
+//		
+//		for _, e := range entries {
+//			listT = append(listT, e.Name())
+////			fmt.Println(e.Extension())
+//		}
+//	}
+//	
+//	return listT
+	
+	err1 := fs.WalkDir(fsys, ".", func(pathA string, deA fs.DirEntry, errA error) error {
+		if errA != nil {
+			return fmt.Errorf("failed to walk dir: %v", errA)
+		}
+		
+//		if path == ".git" {
+//			return fs.SkipDir
+//		}
+
+		if !deA.IsDir() {
+			encT := GetSwitch(optsA, "-encode=", "")
+			
+			if !utf8.ValidString(pathA) {
+				listT = append(listT, ConvertStringToUTF8(pathA, encT))
+			} else {
+				listT = append(listT, pathA)
+			}
+		}
+
+		return nil
+	})
+	
+	if err1 != nil {
+		return fmt.Errorf("failed after walking dir: %v(%#v)", err1, listT)
+	}
+
+	return listT
+}
+
+var GetFileListInArchiveBytes = TKX.GetFileListInArchiveBytes
 
 func (pA *TK) LoadBytesInArchive(archivePathA string, filePathA string, optsA ...string) interface{} {
 
@@ -31053,6 +31164,45 @@ func (pA *TK) ExtractFileInArchive(archivePathA string, filePathA string, toPath
 }
 
 var ExtractFileInArchive = TKX.ExtractFileInArchive
+
+func (pA *TK) GetFileContentInArchiveBytes(bytesA []byte, filePathA string, optsA ...string) interface{} {
+
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	fakeFileNameT := ""
+	
+	if formatT != "" {
+		fakeFileNameT = "a." + formatT
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fsys, err := archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %v", err)
+	}
+
+	fileT, err := fsys.Open(filePathA)
+	if err != nil {
+		return err
+	}
+	
+	defer fileT.Close()
+
+	fileContentT, err := io.ReadAll(fileT)
+	if err != nil {
+		return GenerateErrorStringTX(err.Error())
+	}
+
+	if err != nil && err != io.EOF {
+		return err
+	}
+
+	return fileContentT
+}
+
+var GetFileContentInArchiveBytes = TKX.GetFileContentInArchiveBytes
 
 func (pA *TK) ExtractArchive(archivePathA string, toPathA string, optsA ...string) interface{} {
 
