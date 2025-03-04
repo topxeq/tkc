@@ -27,6 +27,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"golang.org/x/text/encoding/simplifiedchinese"
 	"html/template"
 	"image"
 	"image/color"
@@ -18740,6 +18741,21 @@ func (pA *TK) ConvertToUTF8(srcA []byte, srcEncA string) string {
 
 var ConvertToUTF8 = TKX.ConvertToUTF8
 
+func (pA *TK) Utf8ToGb(strA string) interface{} {
+	dst := make([]byte, len(strA) * 2)
+	tr := simplifiedchinese.GB18030.NewEncoder()
+	
+	nDst, _, err := tr.Transform(dst, []byte(strA), true)
+	
+	if err != nil {
+		return err
+	}
+	
+	return string(dst[:nDst])
+}
+
+var Utf8ToGb = TKX.Utf8ToGb
+
 // ConvertStringToUTF8 转换GB18030编码等字符串为UTF-8字符串
 func (pA *TK) ConvertStringToUTF8(srcA string, srcEncA string) (result string) {
 	defer func() {
@@ -30912,25 +30928,87 @@ func (pA *TK) GetFileListInZipBytes(bytesA []byte, optsA ...string) interface{} 
 
 var GetFileListInZipBytes = TKX.GetFileListInZipBytes
 
-func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{} {
-
-	if strings.HasSuffix(filePathA, ".zip") {
-		return GetFileListInZip(filePathA, optsA...)
+func (pA *TK) IsFileNameUtf8InZipBytes(bytesA []byte, optsA ...string) interface{} {
+	readerT := bytes.NewReader([]byte(bytesA))
+	
+	if readerT == nil {
+		return fmt.Errorf("failed to init reader")
 	}
 	
-	formatT := GetSwitch(optsA, "-format=", "")
-
-	if formatT == "zip" {
-		return GetFileListInZip(filePathA, optsA...)
+	r, err := zip.NewReader(readerT, int64(len(bytesA)))
+	if err != nil {
+		return err
 	}
+	
+	for _, f := range r.File {
+		if f.NonUTF8 || f.Flags == 0 || !utf8.ValidString(f.Name) {
+			return false
+		} else {
+			return true
+		}
+	}
+	
+	return true
+}
+
+var IsFileNameUtf8InZipBytes = TKX.IsFileNameUtf8InZipBytes
+
+func (pA *TK) GetFileListInArchive(filePathA string, optsA ...string) interface{} {
+
+//	if strings.HasSuffix(strings.ToLower(filePathA), ".zip") {
+//		return GetFileListInZip(filePathA, optsA...)
+//	}
+	
+//	if formatT == "zip" {
+//		return GetFileListInZip(filePathA, optsA...)
+//	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fsys, err := archives.FileSystem(ctx, filePathA, nil)
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %v", err)
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	var fsys fs.FS
+	var err error
+	
+//	extractor = archives.Zip{TextEncoding: simplifiedchinese.GB18030}
+
+	if strings.HasSuffix(strings.ToLower(filePathA), "zip") || formatT == "zip" {
+		fsys = &archives.ArchiveFS{
+			Path: filePathA,
+			Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+		}
+	} else {
+		if formatT != "" {
+			fsys, err = archives.FileSystem(ctx, filePathA, nil)
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %v", err)
+			}
+		} else {
+			format, _, identifyErr := archives.Identify(context.Background(), filePathA, nil)
+			if identifyErr != nil {
+				return fmt.Errorf("identify format: %w", identifyErr)
+			}
+			
+			if strings.HasSuffix(format.Extension(), "zip") {
+				fsys = &archives.ArchiveFS{
+					Path: filePathA,
+					Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+				}
+			} else {
+				fsys, err = archives.FileSystem(ctx, filePathA, nil)
+				if err != nil {
+					return fmt.Errorf("failed to open archive: %v", err)
+				}
+			}
+		}
+
 	}
+
+//	fsys, err := archives.FileSystem(ctx, filePathA, nil)
+//	if err != nil {
+//		return fmt.Errorf("failed to open archive: %v", err)
+//	}
 //	f, err := fsys.Open(filePathA)
 //	if err != nil {
 //		return err
@@ -30990,9 +31068,9 @@ func (pA *TK) GetFileListInArchiveBytes(bytesA []byte, optsA ...string) interfac
 
 	formatT := GetSwitch(optsA, "-format=", "")
 
-	if formatT == "zip" {
-		return GetFileListInZipBytes(bytesA, optsA...)
-	}
+//	if formatT == "zip" {
+//		return GetFileListInZipBytes(bytesA, optsA...)
+//	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -31003,10 +31081,42 @@ func (pA *TK) GetFileListInArchiveBytes(bytesA []byte, optsA ...string) interfac
 		fakeFileNameT = "a." + formatT
 	}
 
-	fsys, err := archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %v", err)
+	var fsys fs.FS
+	var err error
+
+	if formatT == "zip" {
+		fsys = &archives.ArchiveFS{
+			Stream: io.NewSectionReader(bytes.NewReader(bytesA), 0, int64(len(bytesA))),
+			Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+		}
+	} else {
+		if formatT != "" {
+			fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %v", err)
+			}
+		} else {
+			format, _, identifyErr := archives.Identify(context.Background(), fakeFileNameT, bytes.NewReader(bytesA))
+			if identifyErr != nil {
+				return fmt.Errorf("identify format: %w", identifyErr)
+			}
+			
+			if strings.HasSuffix(format.Extension(), "zip") {
+				fsys = &archives.ArchiveFS{
+					Stream: io.NewSectionReader(bytes.NewReader(bytesA), 0, int64(len(bytesA))),
+					Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+				}
+			} else {
+				fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+				if err != nil {
+					return fmt.Errorf("failed to open archive: %v", err)
+				}
+			}
+		}
+
 	}
+
+	
 //	f, err := fsys.Open(filePathA)
 //	if err != nil {
 //		return err
@@ -31067,10 +31177,52 @@ func (pA *TK) LoadBytesInArchive(archivePathA string, filePathA string, optsA ..
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %v", err)
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	var fsys fs.FS
+	var err error
+	
+//	extractor = archives.Zip{TextEncoding: simplifiedchinese.GB18030}
+
+	if strings.HasSuffix(strings.ToLower(archivePathA), "zip") || formatT == "zip" {
+		fsys = &archives.ArchiveFS{
+			Path: archivePathA,
+			Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+		}
+	} else {
+		if formatT != "" {
+			fsys, err = archives.FileSystem(ctx, archivePathA, nil)
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %v", err)
+			}
+		} else {
+			format, _, identifyErr := archives.Identify(context.Background(), archivePathA, nil)
+			if identifyErr != nil {
+				return fmt.Errorf("identify format: %w", identifyErr)
+			}
+			
+			if strings.HasSuffix(format.Extension(), "zip") {
+				fsys = &archives.ArchiveFS{
+					Path: archivePathA,
+					Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+				}
+			} else {
+				fsys, err = archives.FileSystem(ctx, archivePathA, nil)
+				if err != nil {
+					return fmt.Errorf("failed to open archive: %v", err)
+				}
+			}
+		}
+
+//		fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+//		if err != nil {
+//			return fmt.Errorf("failed to open archive: %v", err)
+//		}
 	}
+//	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
+//	if err != nil {
+//		return fmt.Errorf("failed to open archive: %v", err)
+//	}
 
 	fileT, err := fsys.Open(filePathA)
 	if err != nil {
@@ -31110,10 +31262,53 @@ func (pA *TK) ExtractFileInArchive(archivePathA string, filePathA string, toPath
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %v", err)
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	var fsys fs.FS
+	var err error
+	
+//	extractor = archives.Zip{TextEncoding: simplifiedchinese.GB18030}
+
+	if strings.HasSuffix(strings.ToLower(archivePathA), "zip") || formatT == "zip" {
+		fsys = &archives.ArchiveFS{
+			Path: archivePathA,
+			Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+		}
+	} else {
+		if formatT != "" {
+			fsys, err = archives.FileSystem(ctx, archivePathA, nil)
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %v", err)
+			}
+		} else {
+			format, _, identifyErr := archives.Identify(context.Background(), archivePathA, nil)
+			if identifyErr != nil {
+				return fmt.Errorf("identify format: %w", identifyErr)
+			}
+			
+			if strings.HasSuffix(format.Extension(), "zip") {
+				fsys = &archives.ArchiveFS{
+					Path: archivePathA,
+					Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+				}
+			} else {
+				fsys, err = archives.FileSystem(ctx, archivePathA, nil)
+				if err != nil {
+					return fmt.Errorf("failed to open archive: %v", err)
+				}
+			}
+		}
+
+//		fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+//		if err != nil {
+//			return fmt.Errorf("failed to open archive: %v", err)
+//		}
 	}
+
+//	fsys, err := archives.FileSystem(ctx, archivePathA, nil)
+//	if err != nil {
+//		return fmt.Errorf("failed to open archive: %v", err)
+//	}
 
 	fileT, err := fsys.Open(filePathA)
 	if err != nil {
@@ -31177,10 +31372,47 @@ func (pA *TK) GetFileContentInArchiveBytes(bytesA []byte, filePathA string, opts
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	
+	var fsys fs.FS
+	var err error
+	
+//	extractor = archives.Zip{TextEncoding: simplifiedchinese.GB18030}
 
-	fsys, err := archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %v", err)
+	if formatT == "zip" {
+		fsys = &archives.ArchiveFS{
+			Stream: io.NewSectionReader(bytes.NewReader(bytesA), 0, int64(len(bytesA))),
+			Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+		}
+	} else {
+		if formatT != "" {
+			fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %v", err)
+			}
+		} else {
+			format, _, identifyErr := archives.Identify(context.Background(), fakeFileNameT, bytes.NewReader(bytesA))
+			if identifyErr != nil {
+				return fmt.Errorf("identify format: %w", identifyErr)
+			}
+			
+			if strings.HasSuffix(format.Extension(), "zip") {
+				fsys = &archives.ArchiveFS{
+					Stream: io.NewSectionReader(bytes.NewReader(bytesA), 0, int64(len(bytesA))),
+					Format: archives.Zip{TextEncoding: simplifiedchinese.GB18030},
+				}
+//				filePathA = Utf8ToGb(filePathA).(string)
+			} else {
+				fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+				if err != nil {
+					return fmt.Errorf("failed to open archive: %v", err)
+				}
+			}
+		}
+
+//		fsys, err = archives.FileSystem(ctx, fakeFileNameT, bytes.NewReader(bytesA))
+//		if err != nil {
+//			return fmt.Errorf("failed to open archive: %v", err)
+//		}
 	}
 
 	fileT, err := fsys.Open(filePathA)
@@ -31225,11 +31457,35 @@ func (pA *TK) ExtractArchive(archivePathA string, toPathA string, optsA ...strin
 	if identifyErr != nil {
 		return fmt.Errorf("identify format: %w", identifyErr)
 	}
-
-	extractor, ok := format.(archives.Extractor)
-	if !ok {
-		return fmt.Errorf("unsupported format for extraction")
+	
+//	Pl("format: %v, %v", format.Extension(), format.MediaType())
+	
+	var extractor archives.Extractor
+	var ok bool
+	
+	if strings.HasSuffix(format.Extension(), "zip") {
+//		fsys = &archives.ArchiveFS{
+//			Stream: io.NewSectionReader(bytes.NewReader(bytesA), 0, int64(len(bytesA))),
+//			Format: archives.Zip{},
+//		}
+		encT := GetSwitch(optsA, "-encode=", "")
+		
+		if encT == "utf8" || encT == "utf-8" {
+			extractor, ok = format.(archives.Extractor)
+			if !ok {
+				return fmt.Errorf("unsupported format for extraction")
+			}
+		} else {
+			extractor = archives.Zip{TextEncoding: simplifiedchinese.GB18030}
+		}
+		
+	} else {
+		extractor, ok = format.(archives.Extractor)
+		if !ok {
+			return fmt.Errorf("unsupported format for extraction")
+		}
 	}
+
 	
 	forceT := IfSwitchExists(optsA, "-force")
 	
