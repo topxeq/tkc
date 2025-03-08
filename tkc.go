@@ -20121,6 +20121,43 @@ func (pA *TK) StatusToMap(statusA string) interface{} {
 
 var StatusToMap = TKX.StatusToMap
 
+// 10: self|20:large|30:medium -> {"10": " self", "20": "large", "30": "medium"}
+func (pA *TK) SimpleStrToMap(strA string) map[string]string {
+	var mapT map[string]string = make(map[string]string)
+
+	listT := strings.Split(strA, "|")
+	
+	for _, v := range listT {
+		list1T := strings.SplitN(v, ":", 2)
+		
+		if len(list1T) < 2 {
+			continue
+		}
+		
+//		k := strings.TrimSpace(list1T[0])
+//		v := strings.TrimSpace(list1T[1])
+		
+		mapT[list1T[0]] = list1T[1]
+	}
+
+	return mapT
+}
+
+var SimpleStrToMap = TKX.SimpleStrToMap
+
+// 10: self|20:large|30:medium -> {"10": " self", "20": "large", "30": "medium"}
+func (pA *TK) ReverseStrMap(mapA map[string]string) map[string]string {
+	var mapT map[string]string = make(map[string]string, len(mapA))
+
+	for k, v := range mapA {
+		mapT[v] = k
+	}
+
+	return mapT
+}
+
+var ReverseStrMap = TKX.ReverseStrMap
+
 func (pA *TK) StringsToJson(strsA ...string) string {
 	lenT := len(strsA)
 
@@ -31705,3 +31742,32 @@ func (pA *TK) GetMultiLineInput(optsA ...string) string {
 }
 
 var GetMultiLineInput = TKX.GetMultiLineInput
+
+// excel column name
+const (
+	asciiAlphabetStart = 65
+	alphabetCount      = 26
+	colMin             = 1
+)
+
+func (pA *TK) ConvertColAlphabet(col int) (string, error) {
+	if col < colMin {
+		return "", fmt.Errorf("argument is out of range [%d]", col)
+	}
+	
+	var colName string
+	tmp := col
+
+	for tmp > 0 {
+		index := tmp - colMin
+		remaining := index / alphabetCount
+		charIndex := int(math.Mod(float64(index), alphabetCount))
+		colName = string(rune(charIndex+asciiAlphabetStart)) + colName
+		tmp = remaining
+	}
+
+	return colName, nil
+}
+
+var ConvertColAlphabet = TKX.ConvertColAlphabet
+
