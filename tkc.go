@@ -125,6 +125,9 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/ALTree/bigfloat"
+
+	"github.com/charmbracelet/bubbles/textarea"
+	bubbletea "github.com/charmbracelet/bubbletea"
 )
 
 var VersionG = "v1.0.1"
@@ -31567,3 +31570,138 @@ func (pA *TK) IsUtf8Bytes(bytesA []byte) bool {
 
 var IsUtf8Bytes = TKX.IsUtf8Bytes
 
+// multi-line input
+type errMsg error
+
+type TextAreaModel struct {
+	Textarea textarea.Model
+	err      error
+	Title	string
+	Bottom string
+	ReturnStatus int
+	Quitting bool
+}
+
+func (m TextAreaModel) Init() bubbletea.Cmd {
+	return textarea.Blink
+}
+
+func (m TextAreaModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
+	var cmds []bubbletea.Cmd
+	var cmd bubbletea.Cmd
+
+	switch msg := msg.(type) {
+	case bubbletea.KeyMsg:
+//		fmt.Printf("msg got: %#v\n", msg)
+
+		switch msg.Type {
+		case bubbletea.KeyEsc:
+			if m.Textarea.Focused() {
+				m.Textarea.Blur()
+			}
+		case bubbletea.KeyTab:
+			if !m.Textarea.Focused() {
+				cmd = m.Textarea.Focus()
+				cmds = append(cmds, cmd)
+			}
+			m.Textarea, cmd = m.Textarea.Update(bubbletea.KeyMsg{Runes: []rune{9}})
+			cmds = append(cmds, cmd)
+			return m, bubbletea.Batch(cmds...)
+		case bubbletea.KeyCtrlQ:
+			m.ReturnStatus = 1 // "done"
+			m.Quitting = true
+			return m, bubbletea.Quit
+		case bubbletea.KeyCtrlX:
+			m.ReturnStatus = -1 // "exit"
+			m.Quitting = true
+			return m, bubbletea.Quit
+		default:
+			if !m.Textarea.Focused() {
+				cmd = m.Textarea.Focus()
+				cmds = append(cmds, cmd)
+			}
+		}
+
+	// We handle errors just like any other message
+	case errMsg:
+		m.err = msg
+		return m, nil
+	}
+
+	m.Textarea, cmd = m.Textarea.Update(msg)
+	cmds = append(cmds, cmd)
+	return m, bubbletea.Batch(cmds...)
+}
+
+func (m TextAreaModel) View() string {
+	if m.Quitting {
+		return ""
+	}
+	
+	return fmt.Sprintf(
+		"%v\n\n%s\n\n%s", 
+		m.Title,
+		m.Textarea.View(),
+		m.Bottom,
+	) + "\n\n"
+}
+
+// rs := GetMultiLineInput("-placeholder=", "-title=请输入……", "-bottom=按 Ctrl-Q 结束输入，Ctrl-X 取消输入", "-width=100", "-height=10")
+func (pA *TK) GetMultiLineInput(optsA ...string) string {
+	placeholderT := GetSwitch(optsA, "-placeholder=", "")
+	titleT := GetSwitch(optsA, "-title=", "")
+	bottomT := GetSwitch(optsA, "-bottom=", "")
+	widthT := ToInt(GetSwitch(optsA, "-width=", "-1"), -1)
+	heightT := ToInt(GetSwitch(optsA, "-height=", "-1"), -1)
+	ifShowLineNumbersT := GetSwitch(optsA, "-showLineNumbers=", "true") != "false"
+	charLimitT := ToInt(GetSwitch(optsA, "-charLimit=", "0"), 0)
+	maxWidthT := ToInt(GetSwitch(optsA, "-maxWidth=", "0"), 0)
+	maxHeightT := ToInt(GetSwitch(optsA, "-maxHeight=", "0"), 0)
+
+	p := bubbletea.NewProgram(func () TextAreaModel {
+		ti := textarea.New()
+		ti.Placeholder = placeholderT
+
+		if heightT >= 0 {
+			ti.SetHeight(heightT)
+		}
+		
+		if widthT >= 0 {
+			ti.SetWidth(widthT)
+		}
+		
+		ti.ShowLineNumbers = ifShowLineNumbersT
+		ti.CharLimit = charLimitT
+		ti.MaxWidth = maxWidthT
+		ti.MaxHeight = maxHeightT
+		
+		ti.Focus()
+
+		return TextAreaModel{
+			Textarea: ti,
+			Title: titleT,
+			Bottom: bottomT,
+			err: nil,
+		}
+	}())
+
+	rs, err := p.Run()
+	
+	if err != nil {
+		return "TXERROR:" + fmt.Sprintf("%v", err)
+	}
+	
+//	fmt.Printf("%#v\n", rs)
+	
+	rs1 := rs.(TextAreaModel)
+	
+	if rs1.ReturnStatus < 0 {
+		return "TXERROR:" + "cancel"
+	}
+	
+//	fmt.Printf("%#v\n", rs1)
+	
+	return rs1.Textarea.Value()
+}
+
+var GetMultiLineInput = TKX.GetMultiLineInput
