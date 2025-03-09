@@ -31617,6 +31617,7 @@ type TextAreaModel struct {
 	Bottom string
 	ReturnStatus int
 	Quitting bool
+	Delegate func(...interface{}) interface{}
 }
 
 func (m TextAreaModel) Init() bubbletea.Cmd {
@@ -31626,16 +31627,45 @@ func (m TextAreaModel) Init() bubbletea.Cmd {
 func (m TextAreaModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
 	var cmds []bubbletea.Cmd
 	var cmd bubbletea.Cmd
-
+	
 	switch msg := msg.(type) {
 	case bubbletea.KeyMsg:
 //		fmt.Printf("msg got: %#v\n", msg)
 
-		switch msg.Type {
-		case bubbletea.KeyEsc:
-			if m.Textarea.Focused() {
+		if m.Delegate != nil {
+			
+			rs := m.Delegate("key", int(msg.Type), msg.Runes, msg.Alt, msg.Paste).(string)
+			
+//			fmt.Printf("callback return: %v\n", rs)
+
+			if strings.HasPrefix(rs, "TXERROR:") {
+				fmt.Printf("input callback error: %v\n", rs[8:])
+			}
+			
+			if rs == "clear" {
+				m.Textarea.SetValue("")
+				cmd = m.Textarea.Focus()
+				cmds = append(cmds, cmd)
+				return m, bubbletea.Batch(cmds...)
+			} else if rs == "exit" {
+				m.ReturnStatus = -1 // "exit"
+				m.Quitting = true
+				return m, bubbletea.Quit
+			} else if rs == "return" {
+				m.ReturnStatus = 1 // "done"
+				m.Quitting = true
+				return m, bubbletea.Quit
+			} else if rs == "blur" {
 				m.Textarea.Blur()
 			}
+		}
+
+
+		switch msg.Type {
+//		case bubbletea.KeyEsc:
+//			if m.Textarea.Focused() {
+//				m.Textarea.Blur()
+//			}
 		case bubbletea.KeyTab:
 			if !m.Textarea.Focused() {
 				cmd = m.Textarea.Focus()
@@ -31645,13 +31675,17 @@ func (m TextAreaModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd
 			cmds = append(cmds, cmd)
 			return m, bubbletea.Batch(cmds...)
 		case bubbletea.KeyCtrlQ:
-			m.ReturnStatus = 1 // "done"
-			m.Quitting = true
-			return m, bubbletea.Quit
+			if m.Delegate == nil {
+				m.ReturnStatus = 1 // "done"
+				m.Quitting = true
+				return m, bubbletea.Quit
+			}
 		case bubbletea.KeyCtrlX:
-			m.ReturnStatus = -1 // "exit"
-			m.Quitting = true
-			return m, bubbletea.Quit
+			if m.Delegate == nil {
+				m.ReturnStatus = -1 // "exit"
+				m.Quitting = true
+				return m, bubbletea.Quit
+			}
 		default:
 			if !m.Textarea.Focused() {
 				cmd = m.Textarea.Focus()
@@ -31684,9 +31718,10 @@ func (m TextAreaModel) View() string {
 }
 
 // rs := GetMultiLineInput("-placeholder=", "-title=请输入……", "-bottom=按 Ctrl-Q 结束输入，Ctrl-X 取消输入", "-width=100", "-height=10")
-func (pA *TK) GetMultiLineInput(optsA ...string) string {
+func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ...string) string {
 	placeholderT := GetSwitch(optsA, "-placeholder=", "")
 	titleT := GetSwitch(optsA, "-title=", "")
+	titleT = GetSwitch(optsA, "-prompt=", titleT)
 	bottomT := GetSwitch(optsA, "-bottom=", "")
 	widthT := ToInt(GetSwitch(optsA, "-width=", "-1"), -1)
 	heightT := ToInt(GetSwitch(optsA, "-height=", "-1"), -1)
@@ -31719,6 +31754,7 @@ func (pA *TK) GetMultiLineInput(optsA ...string) string {
 			Title: titleT,
 			Bottom: bottomT,
 			err: nil,
+			Delegate: deleA,
 		}
 	}())
 
@@ -31750,7 +31786,7 @@ const (
 	colMin             = 1
 )
 
-func (pA *TK) ConvertColAlphabet(col int) (string, error) {
+func (pA *TK) ConvertExcelColIndexToAlphabet(col int) (string, error) {
 	if col < colMin {
 		return "", fmt.Errorf("argument is out of range [%d]", col)
 	}
@@ -31769,5 +31805,5 @@ func (pA *TK) ConvertColAlphabet(col int) (string, error) {
 	return colName, nil
 }
 
-var ConvertColAlphabet = TKX.ConvertColAlphabet
+var ConvertExcelColIndexToAlphabet = TKX.ConvertExcelColIndexToAlphabet
 
