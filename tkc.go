@@ -31617,6 +31617,7 @@ type TextAreaModel struct {
 	Bottom string
 	ReturnStatus int
 	Quitting bool
+	KeepOnQuit bool
 	Delegate func(...interface{}) interface{}
 }
 
@@ -31706,7 +31707,9 @@ func (m TextAreaModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd
 
 func (m TextAreaModel) View() string {
 	if m.Quitting {
-		return ""
+		if !m.KeepOnQuit {
+			return ""
+		}
 	}
 	
 	return fmt.Sprintf(
@@ -31729,6 +31732,7 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 	charLimitT := ToInt(GetSwitch(optsA, "-charLimit=", "0"), 0)
 	maxWidthT := ToInt(GetSwitch(optsA, "-maxWidth=", "0"), 0)
 	maxHeightT := ToInt(GetSwitch(optsA, "-maxHeight=", "0"), 0)
+	keepT := IfSwitchExists(optsA, "-keep")
 
 	p := bubbletea.NewProgram(func () TextAreaModel {
 		ti := textarea.New()
@@ -31746,7 +31750,7 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 		ti.CharLimit = charLimitT
 		ti.MaxWidth = maxWidthT
 		ti.MaxHeight = maxHeightT
-		
+
 		ti.Focus()
 
 		return TextAreaModel{
@@ -31755,6 +31759,7 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 			Bottom: bottomT,
 			err: nil,
 			Delegate: deleA,
+			KeepOnQuit: keepT,
 		}
 	}())
 
