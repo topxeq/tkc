@@ -126,7 +126,9 @@ import (
 
 	"github.com/ALTree/bigfloat"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/table"
 	bubbletea "github.com/charmbracelet/bubbletea"
 )
 
@@ -31613,9 +31615,10 @@ type errMsg error
 type TextAreaModel struct {
 	Textarea textarea.Model
 	err      error
+	ReturnMode	string
 	Title	string
 	Bottom string
-	ReturnStatus int
+	ReturnStatus int // -1: exit, 1 done
 	Quitting bool
 	KeepOnQuit bool
 	Delegate func(...interface{}) interface{}
@@ -31635,12 +31638,12 @@ func (m TextAreaModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd
 
 		if m.Delegate != nil {
 			
-			rs := m.Delegate("key", int(msg.Type), msg.Runes, msg.Alt, msg.Paste).(string)
+			rs := m.Delegate("key", int(msg.Type), msg.Runes, msg.Alt, msg.Paste, msg.String()).(string)
 			
 //			fmt.Printf("callback return: %v\n", rs)
 
 			if strings.HasPrefix(rs, "TXERROR:") {
-				fmt.Printf("input callback error: %v\n", rs[8:])
+				bubbletea.Printf("input callback error: %v", rs[8:])
 			}
 			
 			if rs == "clear" {
@@ -31723,6 +31726,7 @@ func (m TextAreaModel) View() string {
 // rs := GetMultiLineInput("-placeholder=", "-title=请输入……", "-bottom=按 Ctrl-Q 结束输入，Ctrl-X 取消输入", "-width=100", "-height=10")
 func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ...string) string {
 	placeholderT := GetSwitch(optsA, "-placeholder=", "")
+	returnModeT := GetSwitch(optsA, "-returnMode=", "")
 	titleT := GetSwitch(optsA, "-title=", "")
 	titleT = GetSwitch(optsA, "-prompt=", titleT)
 	bottomT := GetSwitch(optsA, "-bottom=", "")
@@ -31760,6 +31764,7 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 			err: nil,
 			Delegate: deleA,
 			KeepOnQuit: keepT,
+			ReturnMode: returnModeT,
 		}
 	}())
 
@@ -31811,4 +31816,208 @@ func (pA *TK) ConvertExcelColIndexToAlphabet(col int) (string, error) {
 }
 
 var ConvertExcelColIndexToAlphabet = TKX.ConvertExcelColIndexToAlphabet
+
+// cui related
+var baseStyle = lipgloss.NewStyle().
+	BorderStyle(lipgloss.NormalBorder()).
+	BorderForeground(lipgloss.Color("240"))
+
+type TeaTableModel struct {
+	Table table.Model
+	Mode string // view, sel
+	ReturnStatus int // -1: exit, 1 done
+	Quitting bool
+	KeepOnQuit bool
+	Delegate func(...interface{}) interface{}
+}
+
+func (m TeaTableModel) Init() bubbletea.Cmd { return nil }
+
+func (m TeaTableModel) Update(msg bubbletea.Msg) (bubbletea.Model, bubbletea.Cmd) {
+	var cmd bubbletea.Cmd
+	switch msg := msg.(type) {
+	case bubbletea.KeyMsg:
+		if m.Delegate != nil {
+			
+			rs := m.Delegate("key", int(msg.Type), msg.Runes, msg.Alt, msg.Paste, msg.String(), m.Table.Cursor(), m.Table.SelectedRow()).(string)
+			
+//			fmt.Printf("callback return: %v\n", rs)
+
+			if strings.HasPrefix(rs, "TXERROR:") {
+				bubbletea.Printf("input callback error: %v", rs[8:])
+			}
+			
+			if rs == "show" {
+				return m, bubbletea.Batch(
+					bubbletea.Printf("[%v] %v", m.Table.Cursor(), ToJSONX(m.Table.SelectedRow())),
+				)
+			} else if rs == "select" {
+				m.ReturnStatus = 1
+				m.Quitting = true
+				return m, bubbletea.Quit
+			} else if rs == "exit" {
+				m.ReturnStatus = -1
+				m.Quitting = true
+				return m, bubbletea.Quit
+			} else if rs == "return" {
+				m.ReturnStatus = 1
+				m.Quitting = true
+				return m, bubbletea.Quit
+			} else if rs == "blur" {
+				m.Table.Blur()
+			}
+		}
+
+		switch msg.String() {
+		case "esc", "ctrl+c":
+			if m.Table.Focused() {
+				m.Table.Blur()
+				
+				if m.Delegate == nil {
+					m.ReturnStatus = -1
+					m.Quitting = true
+					return m, bubbletea.Quit
+				}
+			} else {
+				m.Table.Focus()
+			}
+		case "q":
+			if m.Delegate == nil {
+				m.ReturnStatus = 1
+				m.Quitting = true
+				return m, bubbletea.Quit
+			}
+		case "enter":
+			if m.Mode == "sel" {
+				m.ReturnStatus = 1
+				m.Quitting = true
+				return m, bubbletea.Quit
+			}
+			
+			if m.Delegate == nil {
+				return m, bubbletea.Batch(
+					bubbletea.Printf("[%v] %v", m.Table.Cursor(), ToJSONX(m.Table.SelectedRow())),
+				)
+			}
+		}
+	}
+	m.Table, cmd = m.Table.Update(msg)
+	return m, cmd
+}
+
+func (m TeaTableModel) View() string {
+	if m.Quitting {
+		if !m.KeepOnQuit {
+			return ""
+		}
+	}
+	
+	return baseStyle.Render(m.Table.View()) + "\n"
+}
+
+func (pA *TK) ShowTableCompact(dataA [][]string, deleA func(...interface{}) interface{}, optsA ...string) string {
+	modeT := GetSwitch(optsA, "-mode=", "")
+	widthT := ToInt(GetSwitch(optsA, "-width=", "100"), 100)
+	heightT := ToInt(GetSwitch(optsA, "-height=", "7"), 7)
+	keepT := IfSwitchExists(optsA, "-keep")
+
+	lenT := len(dataA)
+	
+	if lenT < 1 {
+//		return "TXERROR:empty data"
+		dataA = [][]string{}
+	}
+	
+	columnsT := []table.Column{
+//		{Title: "Rank", Width: 4},
+//		{Title: "City", Width: 10},
+//		{Title: "Country", Width: 10},
+//		{Title: "Population", Width: 10},
+	}
+	
+	colConfigStrT := strings.TrimSpace(GetSwitch(optsA, "-cols=", ""))
+	
+	rowsT := []table.Row{
+//		{"1", "Tokyo", "Japan", "37,274,000"},
+//		{"2", "Delhi", "India", "32,065,760"},
+	}
+	
+	if colConfigStrT == "" {
+		if len(dataA) < 1 {
+			columnsT = []table.Column{}
+		} else {
+			len2 := len(dataA[0])
+			
+			for i := 0; i < len2; i ++ {
+				columnsT = append(columnsT, table.Column{Title: dataA[0][i], Width: 10})
+			}
+			
+			for i := 1; i < lenT; i ++ {
+				rowsT = append(rowsT, dataA[i])
+			}
+		}
+	} else {
+		colDefAryT := JSONToMapStringStringArray(colConfigStrT)
+		
+		if colDefAryT == nil {
+			return "TXERROR:invalid column definition"
+		}
+		
+		len2 := len(colDefAryT)
+		
+		for i := 0; i < len2; i ++ {
+			columnsT = append(columnsT, table.Column{Title: colDefAryT[i]["Title"], Width: ToInt(colDefAryT[i]["Width"], 0)})
+		}
+		
+		for i := 0; i < lenT; i ++ {
+			rowsT = append(rowsT, dataA[i])
+		}
+	}
+
+	t := table.New(
+		table.WithColumns(columnsT),
+		table.WithRows(rowsT),
+		table.WithFocused(true),
+		table.WithHeight(heightT),
+		table.WithWidth(widthT),
+	)
+
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(false)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+	t.SetStyles(s)
+
+	m := TeaTableModel{
+		Table: t,
+		Mode: modeT,
+		KeepOnQuit: keepT,
+		Delegate: deleA,
+	}
+	
+	rs, err := bubbletea.NewProgram(m).Run()
+	
+	if err != nil {
+//		fmt.Println("Error running program:", err)
+		return fmt.Sprintf("TXERROR:%v", err)
+	}
+	
+	rs1 := rs.(TeaTableModel)
+	
+	if rs1.ReturnStatus < 0 {
+		return "TXERROR:" + "cancel"
+	}
+	
+//	fmt.Printf("%#v\n", rs1)
+	
+	return ToJSONX(map[string]interface{}{"Idx": rs1.Table.Cursor(), "Item": rs1.Table.SelectedRow()})
+}
+
+var ShowTableCompact = TKX.ShowTableCompact
 
