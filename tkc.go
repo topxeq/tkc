@@ -30916,6 +30916,17 @@ func (pA *TK) ReplacePatternsInDocxBytes(bytesA []byte, replacesA []string, opts
 
 var ReplacePatternsInDocxBytes = TKX.ReplacePatternsInDocxBytes
 
+func (pA *TK) GetPlaceholderInDocxBytes(bytesA []byte, optsA ...string) interface{} {
+	doc, err := docxrepl.OpenBytes(bytesA)
+	if err != nil {
+		return err
+	}
+	
+	return doc.PlaceholderTexts()
+}
+
+var GetPlaceholderInDocxBytes = TKX.GetPlaceholderInDocxBytes
+
 func (pA *TK) GetFileListInZip(filePathA string, optsA ...string) interface{} {
 	r, err := zip.OpenReader(filePathA)
 	if err != nil {
@@ -31723,7 +31734,7 @@ func (m TextAreaModel) View() string {
 	) + "\n\n"
 }
 
-// rs := GetMultiLineInput("-placeholder=", "-title=请输入……", "-bottom=按 Ctrl-Q 结束输入，Ctrl-X 取消输入", "-width=100", "-height=10")
+// rs := GetMultiLineInput("-placeholder=", "-title=Please enter...", "-bottom=Press Ctrl-Q to finish, Ctrl-X to exit.", "-width=100", "-height=10")
 func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ...string) string {
 	placeholderT := GetSwitch(optsA, "-placeholder=", "")
 	returnModeT := GetSwitch(optsA, "-returnMode=", "")

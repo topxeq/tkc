@@ -1,6 +1,8 @@
 module github.com/topxeq/tkc
 
-go 1.22.3
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/ALTree/bigfloat v0.2.0
@@ -23,7 +25,7 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/pretty v1.2.1
-	github.com/topxeq/docxrepl v0.0.0-20250213015321-4bb6fda31782
+	github.com/topxeq/docxrepl v0.0.0-20250311080137-aa66335eab2e
 	github.com/topxeq/gods v0.0.0-20220125023913-b5718bb0c704
 	github.com/topxeq/goph v0.0.0-20240813015542-ebac0794140b
 	github.com/topxeq/mahonia v0.0.0-20190828060648-12b0599ddd1a
@@ -34,11 +36,11 @@ require (
 	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
 	github.com/yuin/goldmark v1.7.2
 	github.com/yuin/goldmark-highlighting v0.0.0-20220208100518-594be1970594
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.36.0
 	golang.org/x/image v0.18.0
-	golang.org/x/net v0.35.0
-	golang.org/x/term v0.29.0
-	golang.org/x/text v0.22.0
+	golang.org/x/net v0.37.0
+	golang.org/x/term v0.30.0
+	golang.org/x/text v0.23.0
 )
 
 require (
@@ -89,6 +91,6 @@ require (
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 )
