@@ -31748,6 +31748,7 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 	maxWidthT := ToInt(GetSwitch(optsA, "-maxWidth=", "0"), 0)
 	maxHeightT := ToInt(GetSwitch(optsA, "-maxHeight=", "0"), 0)
 	keepT := IfSwitchExists(optsA, "-keep")
+	textT := GetSwitch(optsA, "-text=", "")
 
 	p := bubbletea.NewProgram(func () TextAreaModel {
 		ti := textarea.New()
@@ -31765,6 +31766,8 @@ func (pA *TK) GetMultiLineInput(deleA func(...interface{}) interface{}, optsA ..
 		ti.CharLimit = charLimitT
 		ti.MaxWidth = maxWidthT
 		ti.MaxHeight = maxHeightT
+		
+		ti.SetValue(textT)
 
 		ti.Focus()
 
