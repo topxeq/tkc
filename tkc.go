@@ -12,6 +12,7 @@ import (
 	"crypto"
 	"crypto/aes"
 	"crypto/md5"
+	"crypto/cipher"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -14150,6 +14151,42 @@ func (pA *TK) AESDecrypt(src, key []byte) ([]byte, error) {
 }
 
 var AESDecrypt = TKX.AESDecrypt
+
+func pkcs5Padding(ciphertext []byte, blockSize int) []byte {
+	padding := blockSize - len(ciphertext)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(ciphertext, padtext...)
+}
+
+func pkcs5UnPadding(origData []byte) []byte {
+	length := len(origData)
+	unpadding := int(origData[length-1])
+	return origData[:(length - unpadding)]
+}
+
+func (pA *TK) AESEncryptCBC(src, key []byte) ([]byte, error) {
+	block, _ := aes.NewCipher(key)
+	blockSize := block.BlockSize()
+	src = pkcs5Padding(src, blockSize)
+	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
+	encrypted := make([]byte, len(src))
+	blockMode.CryptBlocks(encrypted, src) 
+	return encrypted, nil
+}
+
+var AESEncryptCBC = TKX.AESEncryptCBC
+
+func (pA *TK) AESDecryptCBC(src, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	blockSize := block.BlockSize()
+	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
+	decrypted := make([]byte, len(src))
+	blockMode.CryptBlocks(decrypted, src) 
+	decrypted = pkcs5UnPadding(decrypted) 
+	return decrypted, err
+}
+
+var AESDecryptCBC = TKX.AESDecryptCBC
 
 // func AESDecrypt(src, key []byte) ([]byte, error) {
 // 	//	key = toMD5(key)
