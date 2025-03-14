@@ -14202,13 +14202,24 @@ func (pA *TK) AESEncryptCBC(src, key []byte) ([]byte, error) {
 
 var AESEncryptCBC = TKX.AESEncryptCBC
 
-func (pA *TK) AESDecryptCBC(src, key []byte) ([]byte, error) {
+func (pA *TK) AESDecryptCBC(src, key []byte) (bytesR []byte, errR error) {
+	defer func() {
+		r := recover()
+
+		if r != nil {
+			bytesR = nil
+			errR = fmt.Errorf("%v", r)
+			return
+		}
+	}()
+
 	block, err := aes.NewCipher(key)
 	blockSize := block.BlockSize()
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
 	decrypted := make([]byte, len(src))
 	blockMode.CryptBlocks(decrypted, src) 
 	decrypted = pkcs5UnPadding(decrypted) 
+	
 	return decrypted, err
 }
 
