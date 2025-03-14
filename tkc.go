@@ -13,6 +13,8 @@ import (
 	"crypto/aes"
 	"crypto/md5"
 	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/sha512"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -11898,6 +11900,12 @@ func (pA *TK) EncodeToBase64(bufA []byte) string {
 
 var EncodeToBase64 = TKX.EncodeToBase64
 
+func (pA *TK) EncodeToBase64ByRawURL(bufA []byte) string {
+	return base64.RawURLEncoding.EncodeToString(bufA)
+}
+
+var EncodeToBase64ByRawURL = TKX.EncodeToBase64ByRawURL
+
 func (pA *TK) ToBase64(vA interface{}) string {
 	if vA == nil {
 		return ""
@@ -11940,6 +11948,12 @@ func (pA *TK) DecodeFromBase64(strA string) ([]byte, error) {
 }
 
 var DecodeFromBase64 = TKX.DecodeFromBase64
+
+func (pA *TK) DecodeFromBase64ByRawURL(strA string) ([]byte, error) {
+	return base64.RawURLEncoding.DecodeString(strA)
+}
+
+var DecodeFromBase64ByRawURL = TKX.DecodeFromBase64ByRawURL
 
 func (pA *TK) FromBase64(strA string) interface{} {
 	bufT, errT := base64.StdEncoding.DecodeString(strA)
@@ -12518,6 +12532,18 @@ func (pA *TK) JSONToMapStringString(objStrA string) map[string]string {
 }
 
 var JSONToMapStringString = TKX.JSONToMapStringString
+
+func (pA *TK) JSONToMapStringAny(objStrA string) map[string]interface{} {
+	var rMapT map[string]interface{}
+	errT := json.Unmarshal([]byte(objStrA), &rMapT)
+	if errT != nil {
+		return nil
+	}
+
+	return rMapT
+}
+
+var JSONToMapStringAny = TKX.JSONToMapStringAny
 
 func (pA *TK) JSONToMapStringStringArray(objStrA string) []map[string]string {
 	var rMapT []map[string]string
@@ -28206,6 +28232,74 @@ func (pA *TK) SignRSAWithSHA256(strA string, keyA string) string {
 }
 
 var SignRSAWithSHA256 = TKX.SignRSAWithSHA256
+
+func (pA *TK) SignWithHS512(strA string, keyA []byte) string {
+	h := hmac.New(sha512.New, keyA)
+	h.Write([]byte(strA))
+	return base64.RawURLEncoding.EncodeToString([]byte(h.Sum(nil)))
+}
+
+var SignWithHS512 = TKX.SignWithHS512
+
+func (pA *TK) GenerateJwtToken(objA interface{}, keyA []byte, optsA ...string) string {
+	json1T, errT := json.Marshal(objA)
+	
+	if errT != nil {
+		return "TXERROR:"+errT.Error()
+	}
+	
+	var headStrT string
+	
+	if IfSwitchExists(optsA, "-noType") {
+		headStrT =  `{"alg": "HS512"}`
+	} else {
+		headStrT = `{"alg": "HS512","typ":"JWT"}`
+	}
+
+	tmps := base64.RawURLEncoding.EncodeToString([]byte(headStrT)) + "." + base64.RawURLEncoding.EncodeToString([]byte(json1T))
+	
+	signedT := SignWithHS512(tmps, keyA)
+	
+	return tmps+"."+signedT
+}
+
+var GenerateJwtToken = TKX.GenerateJwtToken
+
+func (pA *TK) ParseJwtToken(strA string, keyA []byte, optsA ...string) interface{} {
+	listT := strings.SplitN(strA, ".", 3)
+	
+	if len(listT) < 3 {
+		return fmt.Errorf("not enough parts: %v", len(listT))
+	}
+	
+	bufT, errT := base64.RawURLEncoding.DecodeString(listT[0])
+
+	if errT != nil {
+		return fmt.Errorf("failed to decode base64-raw-url: %v", errT)
+	}
+
+	headStrT := string(bufT)
+	
+	bufT, errT = base64.RawURLEncoding.DecodeString(listT[1])
+
+	if errT != nil {
+		return fmt.Errorf("failed to decode base64-raw-url: %v", errT)
+	}
+
+	bodyStrT := string(bufT)
+	
+	tmps := base64.RawURLEncoding.EncodeToString([]byte(headStrT)) + "." + base64.RawURLEncoding.EncodeToString([]byte(bodyStrT))
+	
+	signedT := SignWithHS512(tmps, keyA)
+	
+	if signedT != listT[2] {
+		return fmt.Errorf("invalid signature")
+	}
+	
+	return JSONToMapStringAny(bodyStrT)
+}
+
+var ParseJwtToken = TKX.ParseJwtToken
 
 func (pA *TK) AlipaySignString(valuesA interface{}, keyA string) string {
 	if valuesA == nil {
