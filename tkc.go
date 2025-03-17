@@ -14190,7 +14190,17 @@ func pkcs5UnPadding(origData []byte) []byte {
 	return origData[:(length - unpadding)]
 }
 
-func (pA *TK) AESEncryptCBC(src, key []byte) ([]byte, error) {
+func (pA *TK) AESEncryptCBC(src, key []byte) (bytesR []byte, errR error) {
+	defer func() {
+		r := recover()
+
+		if r != nil {
+			bytesR = nil
+			errR = fmt.Errorf("%v(%v, %v)", r, src, key)
+			return
+		}
+	}()
+
 	block, _ := aes.NewCipher(key)
 	blockSize := block.BlockSize()
 	src = pkcs5Padding(src, blockSize)
@@ -28262,9 +28272,9 @@ func (pA *TK) GenerateJwtToken(objA interface{}, keyA []byte, optsA ...string) s
 	var headStrT string
 	
 	if IfSwitchExists(optsA, "-noType") {
-		headStrT =  `{"alg": "HS512"}`
+		headStrT =  `{"alg":"HS512"}`
 	} else {
-		headStrT = `{"alg": "HS512","typ":"JWT"}`
+		headStrT = `{"alg":"HS512","typ":"JWT"}`
 	}
 
 	tmps := base64.RawURLEncoding.EncodeToString([]byte(headStrT)) + "." + base64.RawURLEncoding.EncodeToString([]byte(json1T))
@@ -28301,10 +28311,12 @@ func (pA *TK) ParseJwtToken(strA string, keyA []byte, optsA ...string) interface
 	
 	tmps := base64.RawURLEncoding.EncodeToString([]byte(headStrT)) + "." + base64.RawURLEncoding.EncodeToString([]byte(bodyStrT))
 	
-	signedT := SignWithHS512(tmps, keyA)
-	
-	if signedT != listT[2] {
-		return fmt.Errorf("invalid signature")
+	if !IfSwitchExists(optsA, "-noValidate") {
+		signedT := SignWithHS512(tmps, keyA)
+		
+		if signedT != listT[2] {
+			return fmt.Errorf("invalid signature")
+		}
 	}
 	
 	return JSONToMapStringAny(bodyStrT)
