@@ -133,6 +133,10 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/table"
 	bubbletea "github.com/charmbracelet/bubbletea"
+	
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 var VersionG = "v1.0.1"
@@ -6703,6 +6707,72 @@ func (pA *TK) GetMapKeys(vA interface{}, argsA ...string) interface{} {
 var GetMapKeys = TKX.GetMapKeys
 
 // 系统相关函数 system related
+
+func (pA *TK) GetSystemInfo(optsA ...string) interface{} {
+	diskT := strings.TrimSpace(GetSwitch(optsA, "-disk=", ""))
+	
+	cpuTimeT := ToFloat(GetSwitch(optsA, "-cpuTime=", "1"), 1.0)
+	
+	rs := map[string]interface{} {
+		"Cpu": map[string]interface{} {
+			"Total": 0,
+			"Free": 0,
+			"Used": 0,
+			"Percent": 0,
+		},
+		"Mem": map[string]interface{} {
+			"Total": 0,
+			"Free": 0,
+			"Used": 0,
+			"Percent": 0,
+		},
+		"Disk": map[string]interface{} {
+			"Total": 0,
+			"Free": 0,
+			"Used": 0,
+			"Percent": 0,
+		},
+	}
+	
+	v0, errT := cpu.Percent(time.Duration(float64(time.Second) * cpuTimeT), false)
+	
+	if errT != nil {
+		return errT
+	}
+	
+//	rs["Cpu"].(map[string]interface{})["Total"] = v0.Total
+//	rs["Cpu"]["Free"] = v0.Free
+//	rs["Cpu"]["Used"] = v0.Total - v0.Free
+	rs["Cpu"].(map[string]interface{})["Percent"] = v0[0]
+
+	v1, errT := mem.VirtualMemory()
+
+	if errT != nil {
+		return errT
+	}
+	
+	rs["Mem"].(map[string]interface{})["Total"] = v1.Total
+	rs["Mem"].(map[string]interface{})["Free"] = v1.Free
+	rs["Mem"].(map[string]interface{})["Used"] = v1.Used
+	rs["Mem"].(map[string]interface{})["Percent"] = v1.UsedPercent
+
+	if diskT != "" {
+		v3, errT := disk.Usage(diskT)
+		
+		if errT != nil {
+			return errT
+		}
+		
+		rs["Disk"].(map[string]interface{})["Total"] = v3.Total
+		rs["Disk"].(map[string]interface{})["Free"] = v3.Free
+		rs["Disk"].(map[string]interface{})["Used"] = v3.Used
+		rs["Disk"].(map[string]interface{})["Percent"] = v3.UsedPercent
+
+	}
+	return rs
+}
+
+var GetSystemInfo = TKX.GetSystemInfo
 
 func (pA *TK) GetChar() interface{} {
 	char, key, err := keyboard.GetSingleKey()
