@@ -16,7 +16,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
-	github.com/expr-lang/expr v1.16.9
+	github.com/expr-lang/expr v1.17.1
 	github.com/jhillyerd/enmime v1.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/mailru/easyjson v0.7.7
