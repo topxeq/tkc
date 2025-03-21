@@ -6711,7 +6711,7 @@ var GetMapKeys = TKX.GetMapKeys
 func (pA *TK) GetSystemInfo(optsA ...string) interface{} {
 	diskT := strings.TrimSpace(GetSwitch(optsA, "-disk=", ""))
 	
-	cpuTimeT := ToFloat(GetSwitch(optsA, "-cpuTime=", "1"), 1.0)
+	cpuTimeT := ToFloat(GetSwitch(optsA, "-cpuTime=", "0.1"), 0.1)
 	
 	rs := map[string]interface{} {
 		"Cpu": map[string]interface{} {
