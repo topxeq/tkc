@@ -7067,14 +7067,16 @@ var RunWinFileWithSystemDefault = TKX.RunWinFileWithSystemDefault
 
 // SystemCmd runs a system command, such as "cmd /c dir", "cmd /k copy a.txt b.txt".
 func (pA *TK) SystemCmd(cmdA string, argsA ...string) string {
-	var out bytes.Buffer
+	var out, errBuf bytes.Buffer
 
 	cmd := exec.Command(cmdA, argsA...)
 
 	cmd.Stdout = &out
+	cmd.Stderr = &errBuf
+	
 	errT := cmd.Run()
 	if errT != nil {
-		return GenerateErrorStringF("failed: %v (%v)", errT, out.String())
+		return GenerateErrorStringF("failed: %v (%v/%v)", errT, out.String(), errBuf.String())
 	}
 
 	return out.String()
