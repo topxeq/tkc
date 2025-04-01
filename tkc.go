@@ -137,6 +137,8 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/disk"
+	
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 var VersionG = "v1.0.1"
@@ -32260,4 +32262,51 @@ func (pA *TK) ShowTableCompact(dataA [][]string, deleA func(...interface{}) inte
 }
 
 var ShowTableCompact = TKX.ShowTableCompact
+
+func (pA *TK) StrDiff(s1 string, s2 string, optsA ...string) interface{} {
+	dmp := diffmatchpatch.New()
+	
+	asRuneT := IfSwitchExists(optsA, "-asRune")
+
+	formatT := GetSwitch(optsA, "-format=", "")
+
+	var diffs []diffmatchpatch.Diff
+	
+	if asRuneT {
+		diffs = dmp.DiffMain(s1, s2, false)
+	} else {
+		diffs = dmp.DiffMainRunes([]rune(s1), []rune(s2), false)
+	}
+	
+	var rs interface{}
+	
+	switch formatT {
+	case "", "html":
+		rs = dmp.DiffPrettyHtml(diffs)
+	case "text":
+		rs = dmp.DiffPrettyText(diffs)
+	case "delta":
+		rs = dmp.DiffToDelta(diffs)
+	case "json":
+		rs = ToJSONX(diffs, "-sort")
+	case "map", "object":
+		rs = JSONToObject(ToJSONX(diffs))
+	case "raw":
+		rs = diffs
+	default:
+		rs = dmp.DiffPrettyHtml(diffs)
+	}
+	
+//	fmt.Printf("%v\n", diffs)
+//	fmt.Printf("%#v\n", diffs)
+//	fmt.Printf("%v\n", dmp.DiffText1(diffs))
+//	fmt.Printf("%v\n", dmp.DiffText2(diffs))
+//	fmt.Printf("%v\n", dmp.DiffPrettyHtml(diffs))
+//	fmt.Printf("%v\n", dmp.DiffPrettyText(diffs))
+//	fmt.Printf("%v\n", dmp.DiffToDelta(diffs))
+	
+	return rs
+}
+
+var StrDiff = TKX.StrDiff
 

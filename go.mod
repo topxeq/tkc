@@ -24,6 +24,7 @@ require (
 	github.com/mholt/archives v0.1.0
 	github.com/mozillazg/go-pinyin v0.20.0
 	github.com/pquerna/otp v1.4.0
+	github.com/sergi/go-diff v1.3.1
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/pretty v1.2.1
