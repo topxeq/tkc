@@ -37,6 +37,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	drawOri "image/draw"
 	"io"
 	"io/fs"
 	"math"
@@ -139,6 +140,11 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 	
 	"github.com/sergi/go-diff/diffmatchpatch"
+	
+	"github.com/adhocore/gronx"
+	"github.com/adhocore/gronx/pkg/tasker"
+	
+	"github.com/fogleman/gg"
 )
 
 var VersionG = "v1.0.1"
@@ -32309,4 +32315,319 @@ func (pA *TK) StrDiff(s1 string, s2 string, optsA ...string) interface{} {
 }
 
 var StrDiff = TKX.StrDiff
+
+// cron related
+func (pA *TK) IsValidCronExpr(exprA string) bool {
+	return gronx.IsValid(exprA)
+}
+
+var IsValidCronExpr = TKX.IsValidCronExpr
+
+func (pA *TK) IsCronExprDue(exprA string, optsA ...interface{}) interface{} {
+	gron := gronx.New()
+	
+	if len(optsA) < 1 {
+		rs, err := gron.IsDue(exprA)
+		
+		if err != nil {
+			return err
+		}
+		
+		return rs
+	}
+	
+	timeT := ToTime(optsA[0], time.Now()).(time.Time)
+	
+	rs, err := gron.IsDue(exprA, timeT)
+	
+	if err != nil {
+		return err
+	}
+	
+	return rs
+	
+}
+
+var IsCronExprDue = TKX.IsCronExprDue
+
+func (pA *TK) SplitCronExpr(exprA string) interface{} {
+//	rs, err := gronx.Segments(exprA)
+//	
+//	if err != nil {
+//		return err
+//	}
+
+	rs := RegSplitX(strings.TrimSpace(exprA), `\s+`)
+	
+	if len(rs) < 5 {
+		return fmt.Errorf("invalid crontab expression")
+	}
+	
+	ary1 := rs[0:5]
+
+	ary2 := rs[5:]
+
+	return []string{strings.Join(ary1, " "), strings.Join(ary2, " ")}
+}
+
+var SplitCronExpr = TKX.SplitCronExpr
+
+var taskerG *tasker.Tasker = nil
+var taskerMutexG sync.Mutex
+
+
+func (pA *TK) ResetTasker(optsA ...string) error {
+	taskerMutexG.Lock()
+	
+	if taskerG != nil {
+		taskerG.Stop()
+	}
+	
+	optionsT := tasker.Option{
+//		Verbose: ,
+		// optional: defaults to local
+//		Tz:      "Asia/Bangkok",
+		// optional: defaults to stderr log stream
+//		Out:     "/full/path/to/output-file",
+	}
+	
+	if IfSwitchExists(optsA, "-verbose") {
+		optionsT.Verbose = true
+	}
+	
+	tzT := GetSwitch(optsA, "-tz=", "")
+	
+	if tzT != "" {
+		optionsT.Tz = tzT
+	}
+	
+	logFileT := GetSwitch(optsA, "-log=", "")
+	
+	if logFileT != "" {
+		optionsT.Out = logFileT
+	}
+	
+	taskerG = tasker.New(optionsT)
+	
+//	fmt.Printf("taskerG: %#v (%v)\n", taskerG, taskerG.Running())
+	
+	taskerMutexG.Unlock()
+
+	return nil
+}
+
+var ResetTasker = TKX.ResetTasker
+
+func (pA *TK) StopTasker() error {
+	taskerMutexG.Lock()
+
+	if taskerG != nil {
+		if taskerG.Running() {
+			taskerG.Stop()
+		} else {
+			taskerMutexG.Unlock()
+			return fmt.Errorf("tasker not running")
+		}
+	} else {
+		taskerMutexG.Unlock()
+		return fmt.Errorf("tasker not initialzed")
+	}
+
+	taskerMutexG.Unlock()
+	return nil
+}
+
+var StopTasker = TKX.StopTasker
+
+func (pA *TK) RunTasker() error {
+	taskerMutexG.Lock()
+
+	if taskerG != nil {
+		if taskerG.Running() {
+			taskerG.Stop()
+		}
+
+		taskerG.Run()
+	} else {
+		taskerMutexG.Unlock()
+		return fmt.Errorf("tasker not initialzed")
+	}
+
+	taskerMutexG.Unlock()
+	return nil
+}
+
+var RunTasker = TKX.RunTasker
+
+// call ResetTaskerFirst, after this function, taskerG will stop
+func (pA *TK) AddSimpleTask(exprA string, funcA func(argsA ...interface{}) interface{}) error {
+	taskerMutexG.Lock()
+
+	if taskerG != nil {
+		if taskerG.Running() {
+//			taskerG.Stop()
+		}
+	} else {
+		taskerMutexG.Unlock()
+		return fmt.Errorf("tasker not initialzed")
+	}
+	
+	taskerG.Task(exprA, func(ctx context.Context) (int, error) {
+		rs := funcA()
+		
+		if IsError(rs) {
+			return 1, fmt.Errorf("%v", rs)
+		}
+
+		// then return exit code and error, for eg: if everything okay
+		return 0, nil
+	}, false)
+	
+	taskerMutexG.Unlock()
+
+	return nil
+}
+
+var AddSimpleTask = TKX.AddSimpleTask
+
+func (pA *TK) AddShellTask(exprA string, shellCmdA string) (result error) {
+	defer func() {
+		r := recover()
+
+		if r != nil {
+			result = fmt.Errorf("failed to set map value: %v", r)
+			return
+		}
+	}()
+
+	taskerMutexG.Lock()
+
+	if taskerG != nil {
+		if taskerG.Running() {
+//			taskerG.Stop()
+		}
+	} else {
+		taskerMutexG.Unlock()
+		return fmt.Errorf("tasker not initialzed")
+	}
+	
+	taskerG.Task(exprA, taskerG.Taskify(shellCmdA, tasker.Option{}), false)
+	
+//	taskerG.Task(exprA, func(ctx context.Context) (int, error) {
+//		aryT := ParseCommandLineCompact(shellCmdA)
+//		
+//		rs := SystemCmd(aryT[0], aryT[1:]...)
+//		
+//		if IsError(rs) {
+//			return 1, fmt.Errorf("%v", rs)
+//		}
+//
+//		// then return exit code and error, for eg: if everything okay
+//		return 0, nil
+//	})
+	
+	taskerMutexG.Unlock()
+
+	return nil
+}
+
+var AddShellTask = TKX.AddShellTask
+
+func (pA *TK) SetImageOpacity(imageA image.Image, opacityA float64) image.Image {
+	if opacityA < 0 {
+		opacityA = 0
+	} else if opacityA > 1 {
+		opacityA = 1
+	}
+
+	bounds := imageA.Bounds()
+	mask := image.NewAlpha(bounds)
+	
+	r := int(opacityA * 255.0)
+	
+	for x := 0; x < bounds.Dx(); x++ {
+		for y := 0; y < bounds.Dy(); y++ {
+//			r := mapValues(alpha, 1, 0, 0, 255)
+			mask.SetAlpha(x, y, color.Alpha{uint8(r)})
+		}
+	}
+
+	mskWatermark := image.NewRGBA(bounds)
+	draw.DrawMask(mskWatermark, bounds, imageA, image.ZP, mask, image.ZP, draw.Over)
+	return mskWatermark
+}
+
+var SetImageOpacity = TKX.SetImageOpacity
+
+func (pA *TK) AddWatermarkToImage(imageA image.Image, watermarkA image.Image, optsA ...string) image.Image {
+	repeatT := IfSwitchExists(optsA, "-repeat")
+	
+	opacityT := ToFloat(GetSwitch(optsA, "-opacity="), 1.0)
+	
+	if opacityT < 0 {
+		opacityT = 0
+	} else if opacityT > 1 {
+		opacityT = 1
+	}
+
+	bounds := watermarkA.Bounds()
+	mask := image.NewAlpha(bounds)
+	
+	r := int(opacityT * 255.0)
+	
+	for x := 0; x < bounds.Dx(); x++ {
+		for y := 0; y < bounds.Dy(); y++ {
+//			r := mapValues(alpha, 1, 0, 0, 255)
+			mask.SetAlpha(x, y, color.Alpha{uint8(r)})
+		}
+	}
+
+	mskWatermark := image.NewRGBA(bounds)
+	drawOri.DrawMask(mskWatermark, bounds, watermarkA, image.ZP, mask, image.ZP, draw.Over)
+	
+	widthT := ToFloat(imageA.Bounds().Max.X - imageA.Bounds().Min.X)
+	if widthT < 0.0 {
+		widthT = 0.0
+	}
+	
+	heightT := ToFloat(imageA.Bounds().Max.Y - imageA.Bounds().Min.Y)
+	if heightT < 0.0 {
+		heightT = 0.0
+	}
+	
+	dc := gg.NewContextForImage(imageA)
+
+	if repeatT {
+//	pattern1 := gg.NewSurfacePattern(mskWatermark, gg.RepeatBoth)
+		dc.MoveTo(0, 0)
+		
+		dc.LineTo(widthT, 0)
+		dc.LineTo(widthT, heightT)
+		dc.LineTo(0, heightT)
+		dc.LineTo(0, 0)
+		
+		dc.ClosePath()
+	
+		dc.SetFillStyle(gg.NewSurfacePattern(mskWatermark, gg.RepeatBoth))
+
+		dc.Fill()
+	} else {
+//		dc.SetFillStyle(gg.NewSurfacePattern(mskWatermark, gg.RepeatNone))
+
+		x := ToInt(GetSwitch(optsA, "-x=", "0"), 0)
+		y := ToInt(GetSwitch(optsA, "-y=", "0"), 0)
+		
+		dc.DrawImage(mskWatermark, x, y)
+		
+		dc.Stroke()
+	}
+	
+	
+
+	return dc.Image()
+}
+
+var AddWatermarkToImage = TKX.AddWatermarkToImage
+
+
 

@@ -7,6 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/ALTree/bigfloat v0.2.0
 	github.com/aarzilli/sandblast v0.0.0-20151220083925-43f8fb998d06
+	github.com/adhocore/gronx v1.19.6
 	github.com/atotto/clipboard v0.1.4
 	github.com/beevik/etree v1.4.0
 	github.com/boombuler/barcode v1.0.1
@@ -17,6 +18,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/expr-lang/expr v1.17.1
+	github.com/fogleman/gg v1.3.0
 	github.com/jhillyerd/enmime v1.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/mailru/easyjson v0.7.7
@@ -63,6 +65,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/snappy v0.0.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
