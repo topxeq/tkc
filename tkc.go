@@ -32447,7 +32447,7 @@ func (pA *TK) RunTasker() error {
 			taskerG.Stop()
 		}
 
-		taskerG.Run()
+		go taskerG.Run()
 	} else {
 		taskerMutexG.Unlock()
 		return fmt.Errorf("tasker not initialzed")
@@ -32475,11 +32475,15 @@ func (pA *TK) AddSimpleTask(exprA string, funcA func(argsA ...interface{}) inter
 	taskerG.Task(exprA, func(ctx context.Context) (int, error) {
 		rs := funcA()
 		
+//		fmt.Printf("rs: %v\n", rs)
+		
 		if IsError(rs) {
+//			fmt.Printf("err rs: %v\n", rs)
 			return 1, fmt.Errorf("%v", rs)
 		}
 
 		// then return exit code and error, for eg: if everything okay
+//		fmt.Printf("0 rs: %v\n", rs)
 		return 0, nil
 	}, false)
 	
