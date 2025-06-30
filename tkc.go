@@ -32633,5 +32633,33 @@ func (pA *TK) AddWatermarkToImage(imageA image.Image, watermarkA image.Image, op
 
 var AddWatermarkToImage = TKX.AddWatermarkToImage
 
+// return error in delegate func to stop the ticker thread
+func (pA *TK) RunTickerFunc(secondsA float64, funcA func(argsA ...interface{}) interface{}) error {
+	if funcA == nil {
+		return fmt.Errorf("nil func")
+	}
+	
+	funcT := func() {
+		c := time.Tick(time.Duration(secondsA*1000) * time.Millisecond)
+		
+		for next := range c {
+			rs := funcA(next)
+			
+	//		fmt.Printf("rs: %v\n", rs)
+			
+			if IsError(rs) {
+	//			fmt.Printf("err rs: %v\n", rs)
+				return
+			}
+		}
+	}
+	
+	go funcT()
+	
+	return nil
+}
+
+var RunTickerFunc = TKX.RunTickerFunc
+
 
 
