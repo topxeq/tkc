@@ -22,6 +22,7 @@ require (
 	github.com/jhillyerd/enmime v1.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/mailru/easyjson v0.7.7
+	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mholt/archives v0.1.0
 	github.com/mozillazg/go-pinyin v0.20.0
@@ -105,4 +106,5 @@ require (
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 )
