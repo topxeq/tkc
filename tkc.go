@@ -145,6 +145,10 @@ import (
 	"github.com/adhocore/gronx/pkg/tasker"
 	
 	"github.com/fogleman/gg"
+	
+	"github.com/makiuchi-d/gozxing"
+	"github.com/makiuchi-d/gozxing/qrcode"
+
 )
 
 var VersionG = "v1.0.1"
@@ -21460,6 +21464,29 @@ func (pA *TK) GenerateQR(contentA string, optsA ...string) (barcode.Barcode, err
 
 var GenerateQR = TKX.GenerateQR
 
+func (pA *TK) ScanQR(imgA image.Image, optsA ...string) string {
+	bmp, err1 := gozxing.NewBinaryBitmapFromImage(imgA)
+	
+	if err1 != nil {
+		return ErrStrf("%v", err1)
+	}
+
+	// decode image
+	qrReader := qrcode.NewQRCodeReader()
+	result, err2 := qrReader.Decode(bmp, nil)
+	if err2 != nil {
+		return ErrStrf("%v", err2)
+	}
+	
+	if result == nil {
+		return ErrStr("qrcode not found")
+	}
+	
+	return result.GetText()
+}
+
+var ScanQR = TKX.ScanQR
+
 func (pA *TK) Compress(dataA interface{}, argsA ...interface{}) interface{} {
 	//NoCompression      = flate.NoCompression
 	//BestSpeed          = flate.BestSpeed
@@ -28609,6 +28636,58 @@ func (pA *TK) LoadImageFromFile(pathA string, argsA ...string) interface{} {
 }
 
 var LoadImageFromFile = TKX.LoadImageFromFile
+
+func (pA *TK) LoadImageFromUrl(pathA string, argsA ...string) interface{} {
+	var imgT image.Image = nil
+	var errT error
+
+	bytesT := GetWeb(pathA, "-bytes")
+
+	if IsErrX(bytesT) {
+		return fmt.Errorf("%v", bytesT)
+	}
+	
+	readerT := bytes.NewReader(bytesT.([]byte))
+
+	extT := strings.ToLower(filepath.Ext(pathA))
+
+	typeT := strings.TrimSpace(GetSwitch(argsA, "-type=", extT))
+
+	typeT = strings.Trim(typeT, ".")
+
+	switch typeT {
+	case "", "jpg", "jpeg":
+		imgT, errT = jpeg.Decode(readerT)
+
+		if errT != nil {
+			return errT
+		}
+	case "png":
+		imgT, errT = png.Decode(readerT)
+
+		if errT != nil {
+			return errT
+		}
+	case "gif":
+		imgT, errT = gif.Decode(readerT)
+
+		if errT != nil {
+			return errT
+		}
+	case "bmp":
+		imgT, errT = bmp.Decode(readerT)
+
+		if errT != nil {
+			return errT
+		}
+	default:
+		return fmt.Errorf("unsupported image type")
+	}
+
+	return imgT
+}
+
+var LoadImageFromUrl = TKX.LoadImageFromUrl
 
 func (p *TK) SaveImageToFile(imageA image.Image, filePathA string, formatA ...string) error {
 	fileT, errT := os.Create(filePathA)
