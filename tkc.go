@@ -15125,19 +15125,38 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 	if IfSwitchExistsWholeI(optsA, "-verbose") {
 		Pl("REQ: %v", req)
 	}
+	
+	returnAnyT := IfSwitchExistsWholeI(optsA, "-returnAny")
 
 	respT, errT = client.Do(req)
 
 	if errT == nil {
 		defer respT.Body.Close()
 		if respT.StatusCode != 200 {
+			var body []byte = nil
+			
 			if IfSwitchExistsWholeI(optsA, "-detail") {
-				body, errT := io.ReadAll(respT.Body)
+				body, errT = io.ReadAll(respT.Body)
 
 				if errT != nil {
 					body = []byte(errT.Error())
 				}
 				Pl("response status: %v (%v) body: %v", respT.StatusCode, respT, string(body))
+			}
+			
+			if returnAnyT {
+				if body == nil {
+					body, errT = io.ReadAll(respT.Body)
+
+					if errT != nil {
+						body = []byte(errT.Error())
+					}
+				}
+
+				return map[string]interface{}{
+					"respCode": respT.StatusCode,
+					"respBody": body,
+				}
 			}
 
 			return fmt.Errorf("response status: %v", respT.StatusCode)
