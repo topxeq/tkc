@@ -27644,10 +27644,62 @@ func (pA *OrderedMap) SortStringKeys(argsA ...string) error {
 	return nil
 }
 
+func (pA *OrderedMap) SortStringKeysDesc(argsA ...string) error {
+	keysT := pA.GetStringKeys()
+
+	sort.Sort(sort.Reverse(sort.StringSlice(keysT)))
+
+	pA.list.Init()
+	for _, v := range keysT {
+		// pair := &OrderedMapPair{
+		// 	Key:   v,
+		// 	Value: pA.pairs[v].Value,
+		// }
+		// pair.element = om.list.PushBack(pair)
+		pA.pairs[v].element = pA.list.PushBack(pA.pairs[v])
+	}
+
+	return nil
+}
+
 func (pA *OrderedMap) SortStringKeysByFunc(funcA func(i, j int) bool) error {
 	keysT := pA.GetStringKeys()
 
 	sort.SliceStable(keysT, funcA)
+
+	pA.list.Init()
+	for _, v := range keysT {
+		pA.pairs[v].element = pA.list.PushBack(pA.pairs[v])
+	}
+
+	return nil
+}
+
+func (om *OrderedMap) Swap(key, markKey interface{}) error {
+	elements, err := om.getElements(key, markKey)
+	if err != nil {
+		return err
+	}
+	om.list.MoveAfter(elements[0], elements[1])
+	return nil
+}
+
+func (pA *OrderedMap) SortByFunc(funcA func(i, j string) bool) error {
+	keysT := pA.GetStringKeys()
+	
+	lenT := len(keysT)
+	
+	var tmps string
+
+	for i := 0; i < lenT; i ++ {
+		for j := i + 1; j < lenT; j ++ {
+			if !funcA(keysT[i], keysT[j]) {
+				tmps = keysT[i]
+				keysT[i] = keysT[j]
+				keysT[j] = tmps
+			}
+		}
+	}
 
 	pA.list.Init()
 	for _, v := range keysT {
@@ -27689,6 +27741,16 @@ func (om *OrderedMap) GetString(key interface{}) string {
 	return ""
 }
 
+func (om *OrderedMap) HasKey(key interface{}) bool {
+	_, present := om.pairs[key]
+	
+	if present {
+		return true
+	}
+	
+	return false
+}
+
 func (om *OrderedMap) GetByIndex(idxA int) (interface{}, bool) {
 
 	if idxA < 0 || idxA >= om.list.Len() {
@@ -27708,6 +27770,25 @@ func (om *OrderedMap) GetByIndex(idxA int) (interface{}, bool) {
 	return nil, false
 }
 
+func (om *OrderedMap) GetByIndexQuick(idxA int) interface{} {
+
+	if idxA < 0 || idxA >= om.list.Len() {
+		return nil
+	}
+
+	cntT := 0
+
+	for e := om.list.Front(); e != nil; e = e.Next() {
+		if cntT == idxA {
+			return e.Value.(*OrderedMapPair).Value
+		}
+
+		cntT++
+	}
+
+	return nil
+}
+
 func (om *OrderedMap) GetKeyByIndex(idxA int) (interface{}, bool) {
 	if idxA < 0 || idxA >= om.list.Len() {
 		return nil, false
@@ -27724,6 +27805,24 @@ func (om *OrderedMap) GetKeyByIndex(idxA int) (interface{}, bool) {
 	}
 
 	return nil, false
+}
+
+func (om *OrderedMap) GetKeyByIndexQuick(idxA int) interface{} {
+	if idxA < 0 || idxA >= om.list.Len() {
+		return nil
+	}
+
+	cntT := 0
+
+	for e := om.list.Front(); e != nil; e = e.Next() {
+		if cntT == idxA {
+			return e.Value.(*OrderedMapPair).Key
+		}
+
+		cntT++
+	}
+
+	return nil
 }
 
 func (om *OrderedMap) GetPairByIndex(idxA int) *OrderedMapPair {
