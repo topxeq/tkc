@@ -14985,10 +14985,11 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 	}
 
 	var urlT string
-	if !StartsWithIgnoreCase(urlA, "http") {
-		urlT = "http://" + urlA
-	} else {
-		urlT = urlA
+
+	urlT = GetSwitchI(optsA, "-url=", urlA)
+
+	if !StartsWithIgnoreCase(urlT, "http") {
+		urlT = "http://" + urlT
 	}
 
 	var respT *http.Response
@@ -15128,6 +15129,8 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 	
 	returnAnyT := IfSwitchExistsWholeI(optsA, "-returnAny")
 
+	returnReaderT := IfSwitchExistsWholeI(optsA, "-returnReader")
+
 	respT, errT = client.Do(req)
 
 	if errT == nil {
@@ -15171,6 +15174,10 @@ func (pA *TK) GetWeb(urlA string, optsA ...interface{}) interface{} {
 				Pl("response status: %v (%v) body: %v", respT.StatusCode, respT, string(body))
 			}
 
+			if returnReaderT {
+				return respT.Body
+			}
+			
 			if IfSwitchExistsWholeI(optsA, "-bytes") {
 				return body
 			}
@@ -30774,7 +30781,7 @@ func (pA *TK) DealString(strA string, optsA ...string) string {
 
 		buf, errT := hex.DecodeString(strA)
 		if errT != nil {
-			return ErrStrf("failed decode hex: %v", errT)
+			return ErrStrf("failed to decode hex: %v", errT)
 		}
 
 		return string(buf)
@@ -30783,10 +30790,19 @@ func (pA *TK) DealString(strA string, optsA ...string) string {
 
 		buf, errT := hex.DecodeString(strA)
 		if errT != nil {
-			return ErrStrf("failed decode hex: %v", errT)
+			return ErrStrf("failed to decode hex: %v", errT)
 		}
 
 		return string(buf)
+	} else if strings.HasPrefix(strA, "//TXUE#") {
+		strA = strA[7:]
+
+		rStrT, errT := url.QueryUnescape(strA)
+		if errT != nil {
+			return ErrStrf("failed to urlDecode: %v", errT)
+		}
+
+		return rStrT
 	} else if strings.HasPrefix(strA, "//TXTE#") {
 		codeT := ""
 
