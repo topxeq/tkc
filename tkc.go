@@ -21341,6 +21341,29 @@ func (pA *TK) TrimSafely(vA interface{}, defaultA ...string) string {
 
 var TrimSafely = TKX.TrimSafely
 
+func (pA *TK) GetSubString(strA string, startA int, endA int, defaultA ...string) string {
+	var defaultT string = ""
+	if len(defaultA) > 0 {
+		defaultT = defaultA[0]
+	}
+
+	if startA < 0 {
+		return defaultT
+	}
+	
+	if endA > len(strA) {
+		return defaultT
+	}
+	
+	if startA > endA {
+		return defaultT
+	}
+	
+	return strA[startA:endA]
+}
+
+var GetSubString = TKX.GetSubString
+
 func (pA *TK) TrimEx(vA interface{}, argsA ...string) string {
 	if vA == nil {
 		return ""
