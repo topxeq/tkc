@@ -8695,6 +8695,67 @@ func (pA *TK) CompareBytes(buf1 []byte, buf2 []byte, limitA ...int) [][]int {
 
 var CompareBytes = TKX.CompareBytes
 
+func (pA *TK) CompareText(buf1 string, buf2 string, limitA ...int) [][]int {
+	limitT := 0
+
+	if len(limitA) > 0 {
+		limitT = limitA[0]
+	}
+	
+	runeBuf1 := []rune(buf1)
+	runeBuf2 := []rune(buf2)
+
+	len1 := len(runeBuf1)
+
+	len2 := len(runeBuf2)
+
+	lenT := len1
+
+	if lenT < len2 {
+		lenT = len2
+	}
+
+	var c1 int
+	var c2 int
+
+	diffBufT := make([][]int, 0, 100)
+
+	countT := 0
+
+	for i := 0; i < lenT; i++ {
+		if (limitT > 0) && (countT >= limitT) {
+			break
+		}
+
+		if i >= len1 {
+			c1 = 65536
+		} else {
+			c1 = int(runeBuf1[i])
+		}
+
+		if i >= len2 {
+			c2 = 65536
+		} else {
+			c2 = int(runeBuf2[i])
+		}
+
+		// if i%1000000 == 0 {
+		// 	pl("%v(%v) - %v %v", i, i, c1, c2)
+		// }
+
+		if c1 != c2 {
+			diffBufT = append(diffBufT, []int{i, c1, c2})
+			// pl("%v(%v) - %v %v", i, i, c1, c2)
+			countT++
+		}
+
+	}
+
+	return diffBufT
+}
+
+var CompareText = TKX.CompareText
+
 func (pA *TK) BytesToData(bytesA []byte, dataA interface{}, optsA ...string) error {
 	defaultEndianT := GetSystemEndian()
 
