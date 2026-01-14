@@ -1,6 +1,6 @@
 package tkc
 
-// build 202406180001
+// build 202601150001
 
 import (
 	"archive/zip"
@@ -4757,15 +4757,15 @@ var ifRandomizedG = false
 
 // Randomize 初始化随机数种子
 func (pA *TK) Randomize(seedA ...int) {
-	var seedT int64
-
-	if len(seedA) > 0 {
-		seedT = int64(seedA[0])
-	} else {
-		seedT = time.Now().Unix()
-	}
-
 	if !ifRandomizedG {
+		var seedT int64
+
+		if len(seedA) > 0 {
+			seedT = int64(seedA[0])
+		} else {
+			seedT = time.Now().Unix()
+		}
+
 		rand.Seed(seedT)
 		ifRandomizedG = true
 	}
@@ -20023,15 +20023,16 @@ var ReflectCallMethodQuick = TKX.ReflectCallMethodQuick
 func (pA *TK) ReflectCallMethodCompact(vA interface{}, nameA string, argsA ...interface{}) interface{} {
 	var rv1 reflect.Value = reflect.ValueOf(vA)
 
-	// Pl("rv1: %T %#v %v", rv1, rv1, rv1)
+//	 Pl("rv1: %T %#v %v", rv1, rv1, rv1)
 
 	rv2 := rv1.MethodByName(nameA)
 
 	if !rv2.IsValid() || rv2.IsZero() {
+//	 Pl("!rv2.IsValid() || rv2.IsZero()")
 		return nil
 	}
 
-	// Pl("rv2: %T %#v %v", rv2, rv2, rv2)
+//	 Pl("rv2: %T %#v %v", rv2, rv2, rv2)
 
 	lenT := len(argsA)
 
