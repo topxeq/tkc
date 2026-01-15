@@ -20061,6 +20061,47 @@ func (pA *TK) ReflectCallMethodCompact(vA interface{}, nameA string, argsA ...in
 
 var ReflectCallMethodCompact = TKX.ReflectCallMethodCompact
 
+func (pA *TK) ReflectCallMethodCompactWithError(vA interface{}, nameA string, argsA ...interface{}) interface{} {
+	var rv1 reflect.Value = reflect.ValueOf(vA)
+
+//	 Pl("rv1: %T %#v %v", rv1, rv1, rv1)
+
+	rv2 := rv1.MethodByName(nameA)
+
+	if !rv2.IsValid() || rv2.IsZero() {
+//	 Pl("!rv2.IsValid() || rv2.IsZero()")
+		return fmt.Errorf("method not found: %v", nameA)
+	}
+
+//	 Pl("rv2: %T %#v %v", rv2, rv2, rv2)
+
+	lenT := len(argsA)
+
+	sl := make([]reflect.Value, 0, lenT)
+
+	for i := 0; i < lenT; i++ {
+		sl = append(sl, reflect.ValueOf(argsA[i]))
+	}
+
+	rrvT := rv2.Call(sl)
+
+	rvr := make([]interface{}, 0)
+
+	for _, v9 := range rrvT {
+		rvr = append(rvr, v9.Interface())
+	}
+
+	if len(rvr) < 1 {
+		return nil
+	} else if len(rvr) < 2 {
+		return rvr[0]
+	}
+
+	return rvr
+}
+
+var ReflectCallMethodCompactWithError = TKX.ReflectCallMethodCompactWithError
+
 func (pA *TK) ReflectCallFuncQuick(vA interface{}, argsA ...interface{}) []interface{} {
 	var rv1 reflect.Value = reflect.ValueOf(vA)
 
