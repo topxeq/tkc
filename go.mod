@@ -17,7 +17,7 @@ require (
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/expr-lang/expr v1.17.1
 	github.com/fogleman/gg v1.3.0
-	github.com/jhillyerd/enmime v1.2.0
+	github.com/jhillyerd/enmime v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/mailru/easyjson v0.7.7
 	github.com/makiuchi-d/gozxing v0.1.1
@@ -40,11 +40,11 @@ require (
 	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
 	github.com/yuin/goldmark v1.7.2
 	github.com/yuin/goldmark-highlighting v0.0.0-20220208100518-594be1970594
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.48.0
 	golang.org/x/image v0.18.0
-	golang.org/x/net v0.37.0
-	golang.org/x/term v0.30.0
-	golang.org/x/text v0.23.0
+	golang.org/x/net v0.50.0
+	golang.org/x/term v0.40.0
+	golang.org/x/text v0.34.0
 )
 
 require (
@@ -109,7 +109,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 )
