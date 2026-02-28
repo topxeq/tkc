@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
 	"container/list"
 	"context"
@@ -70,6 +71,7 @@ import (
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/draw"
 	"golang.org/x/term"
+	"golang.org/x/text/transform"
 
 	"github.com/eiannone/keyboard"
 	"github.com/topxeq/gods/lists/arraylist"
@@ -33028,5 +33030,1056 @@ func (pA *TK) RunTickerFunc(secondsA float64, funcA func(argsA ...interface{}) i
 
 var RunTickerFunc = TKX.RunTickerFunc
 
+// gbkToUtf8 将GBK编码的字符串转换为UTF-8编码
+// 使用golang.org/x/text/encoding/simplifiedchinese包进行编码转换
+func gbkToUtf8(s string) string {
+	// 使用GBK编码创建一个解码器
+	decoder := simplifiedchinese.GBK.NewDecoder()
 
+	// 尝试将GBK编码的字符串转换为UTF-8编码
+	result, _, err := transform.String(decoder, s)
+	if err != nil {
+		// 转换失败，返回原始字符串
+		return s
+	}
 
+	return result
+}
+
+// fixFileNameEncoding 修复文件名编码问题
+// 尝试处理不同编码的中文文件名
+func fixFileNameEncoding(fileName string) string {
+	// 检查文件名是否已经是有效的UTF-8编码
+	if utf8.ValidString(fileName) {
+		return fileName
+	}
+
+	// 尝试将GBK编码的文件名转换为UTF-8编码
+	// 在Windows中，zip文件的中文文件名通常使用GBK编码
+	return gbkToUtf8(fileName)
+}
+
+// UnzipToPath 解压zip文件到指定目录
+// zipFilePath: 压缩文件路径
+// destDir: 解压目录路径
+// options: 解压选项，如"-overwrite"表示覆盖已存在的文件，"-implicitTop"表示创建隐式顶层文件夹，"-continueOnError"表示遇到错误继续执行
+// 返回值: 成功返回nil，失败返回错误信息
+func (pA *TK) UnzipToPath(zipFilePath, destDir string, options ...string) error {
+
+	// 打开zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 确保目标目录存在
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return err
+	}
+
+	// 检查是否需要创建隐式顶层文件夹
+	implicitTop := IfSwitchExists(options, "-implicitTop")
+	topLevelDir := destDir
+
+	// 如果需要创建隐式顶层文件夹，检查zip文件中的文件是否有共同的根目录
+	if implicitTop && len(r.File) > 0 {
+		// 检查是否所有文件都有共同的根目录
+		hasCommonRoot := true
+		firstFile := r.File[0]
+		firstDir := filepath.Dir(firstFile.Name)
+		if firstDir == "" {
+			// 第一个文件在根目录，检查其他文件是否也在根目录
+			for _, f := range r.File[1:] {
+				if filepath.Dir(f.Name) != "" {
+					hasCommonRoot = false
+					break
+				}
+			}
+		} else {
+			// 第一个文件在子目录，检查其他文件是否也在同一个子目录
+			for _, f := range r.File[1:] {
+				if filepath.Dir(f.Name) != firstDir {
+					hasCommonRoot = false
+					break
+				}
+			}
+		}
+
+		// 如果没有共同的根目录，创建隐式顶层文件夹
+		if !hasCommonRoot {
+			// 使用zip文件名作为顶层文件夹名
+			zipFileName := filepath.Base(zipFilePath)
+			topLevelDirName := zipFileName[:len(zipFileName)-len(filepath.Ext(zipFileName))]
+			topLevelDir = filepath.Join(destDir, topLevelDirName)
+			if err := os.MkdirAll(topLevelDir, 0755); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 遍历zip文件中的所有文件
+	for _, f := range r.File {
+		// 处理文件名编码
+		fileName := f.Name
+		// 检查文件名是否是有效的UTF-8编码
+		if !utf8.ValidString(fileName) {
+			// 尝试修复编码问题
+			// 这里使用简单的替换方法，实际项目中可能需要更复杂的处理
+			// 例如使用iconv库进行GBK到UTF-8的转换
+			// 由于不能使用第三方库，这里使用一个简单的方法
+			fileName = fixFileNameEncoding(fileName)
+		}
+		// 构建目标文件路径
+		destPath := filepath.Join(topLevelDir, fileName)
+
+		// 如果是目录，创建目录
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(destPath, f.Mode()); err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+			continue
+		}
+
+		// 确保父目录存在
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 打开zip中的文件
+		rc, err := f.Open()
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 检查文件是否存在
+		if _, err := os.Stat(destPath); err == nil {
+			// 文件已存在，检查是否需要覆盖
+			if !IfSwitchExists(options, "-overwrite") {
+				rc.Close()
+				return fmt.Errorf("file already exists: %s", destPath)
+			}
+		}
+
+		// 创建目标文件
+		dst, err := os.Create(destPath)
+		if err != nil {
+			rc.Close()
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 复制文件内容
+		if _, err = io.Copy(dst, rc); err != nil {
+			dst.Close()
+			rc.Close()
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 关闭文件
+		dst.Close()
+		rc.Close()
+
+		// 设置文件权限
+		if err := os.Chmod(destPath, f.Mode()); err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+// 全局函数定义
+var UnzipToPath = TKX.UnzipToPath
+
+// ZipPathToFile 压缩指定路径（目录或单个文件）到zip文件
+// path: 要压缩的路径（目录或单个文件）
+// zipFilePath: 压缩文件的路径
+// options: 压缩选项，如"-overwrite"表示覆盖已存在的文件，"-implicitTop"表示创建隐式顶层文件夹，"-continueOnError"表示遇到错误继续执行，"-compressionLevel=9"表示设置压缩级别
+// 返回值: 成功返回nil，失败返回错误信息
+func (pA *TK) ZipPathToFile(path, zipFilePath string, options ...string) error {
+
+	// 检查zip文件是否存在
+	if _, err := os.Stat(zipFilePath); err == nil {
+		// 文件已存在，检查是否需要覆盖
+		if !IfSwitchExists(options, "-overwrite") {
+			return fmt.Errorf("file already exists: %s", zipFilePath)
+		}
+	}
+
+	// 创建zip文件
+	zipFile, err := os.Create(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer zipFile.Close()
+
+	// 设置压缩级别
+	compressionLevel := flate.DefaultCompression
+	for _, option := range options {
+		if len(option) > 18 && option[:18] == "-compressionLevel=" {
+			levelStr := option[18:]
+			level := 0
+			for _, c := range levelStr {
+				if c >= '0' && c <= '9' {
+					level = level*10 + int(c-'0')
+				} else {
+					break
+				}
+			}
+			if level >= 0 && level <= 9 {
+				compressionLevel = level
+			}
+		}
+	}
+
+	// 创建zip writer
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	// 注册自定义压缩器以设置压缩级别
+	zipWriter.RegisterCompressor(zip.Deflate, func(w io.Writer) (io.WriteCloser, error) {
+		return flate.NewWriter(w, compressionLevel)
+	})
+
+	// 检查路径是否存在
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	// 检查是否需要创建隐式顶层文件夹
+	implicitTop := IfSwitchExists(options, "-implicitTop")
+	topLevelPrefix := ""
+
+	// 如果需要创建隐式顶层文件夹，使用路径的基本名称作为前缀
+	if implicitTop {
+		topLevelPrefix = filepath.Base(path)
+		// 如果是目录，添加斜杠
+		if info.IsDir() {
+			topLevelPrefix += "/"
+		}
+	}
+
+	// 处理单个文件的情况
+	if !info.IsDir() {
+		// 构建zip中的文件路径
+		zipPath := filepath.Base(path)
+		if implicitTop {
+			zipPath = topLevelPrefix
+		}
+		// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+		zipPath = filepath.ToSlash(zipPath)
+
+		// 添加单个文件到zip
+		header := &zip.FileHeader{
+			Name:   zipPath,
+			Method: zip.Deflate,
+		}
+		header.SetMode(0644)
+		w, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 读取文件内容
+		content, err := os.ReadFile(path)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 写入zip
+		_, err = w.Write(content)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		return nil
+	}
+
+	// 处理目录的情况
+	return filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 跳过目录本身
+		if filePath == path {
+			return nil
+		}
+
+		// 计算相对于原始路径的相对路径
+		relPath, err := filepath.Rel(path, filePath)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 构建zip中的文件路径
+		zipPath := relPath
+		if implicitTop {
+			zipPath = filepath.Join(topLevelPrefix, relPath)
+		}
+		// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+		zipPath = filepath.ToSlash(zipPath)
+
+		// 如果是目录，创建目录条目
+		if info.IsDir() {
+			// 使用正斜杠作为目录分隔符，因为zip文件格式使用正斜杠
+			dirPath := zipPath
+			if !strings.HasSuffix(dirPath, "/") {
+				dirPath += "/"
+			}
+			_, err := zipWriter.Create(dirPath)
+			if err != nil && IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 如果是文件，添加到zip
+		header := &zip.FileHeader{
+			Name:   zipPath,
+			Method: zip.Deflate,
+		}
+		header.SetMode(info.Mode())
+		w, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 读取文件内容
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		}
+
+		// 写入zip
+		_, err = w.Write(content)
+		if err != nil && IfSwitchExists(options, "-continueOnError") {
+			return nil
+		}
+		return err
+	})
+}
+
+// 全局函数定义
+var ZipPathToFile = TKX.ZipPathToFile
+
+// ZipPathsToFile 压缩多个文件或目录到zip文件
+// paths: 要压缩的文件或目录路径数组
+// zipFilePath: 压缩文件的路径
+// options: 压缩选项，如"-overwrite"表示覆盖已存在的文件，"-implicitTop"表示创建隐式顶层文件夹，"-continueOnError"表示遇到错误继续执行，"-compressionLevel=9"表示设置压缩级别
+// 返回值: 成功返回nil，失败返回错误信息
+func (pA *TK) ZipPathsToFile(paths []string, zipFilePath string, options ...string) error {
+
+	// 检查zip文件是否存在
+	if _, err := os.Stat(zipFilePath); err == nil {
+		// 文件已存在，检查是否需要覆盖
+		if !IfSwitchExists(options, "-overwrite") {
+			return fmt.Errorf("file already exists: %s", zipFilePath)
+		}
+	}
+
+	// 创建zip文件
+	zipFile, err := os.Create(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer zipFile.Close()
+
+	// 设置压缩级别
+	compressionLevel := flate.DefaultCompression
+	for _, option := range options {
+		if len(option) > 18 && option[:18] == "-compressionLevel=" {
+			levelStr := option[18:]
+			level := 0
+			for _, c := range levelStr {
+				if c >= '0' && c <= '9' {
+					level = level*10 + int(c-'0')
+				} else {
+					break
+				}
+			}
+			if level >= 0 && level <= 9 {
+				compressionLevel = level
+			}
+		}
+	}
+
+	// 创建zip writer
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	// 注册自定义压缩器以设置压缩级别
+	zipWriter.RegisterCompressor(zip.Deflate, func(w io.Writer) (io.WriteCloser, error) {
+		return flate.NewWriter(w, compressionLevel)
+	})
+
+	// 检查是否需要创建隐式顶层文件夹
+	implicitTop := IfSwitchExists(options, "-implicitTop")
+	topLevelPrefix := ""
+
+	// 处理每个路径
+	for _, path := range paths {
+		// 检查路径是否存在
+		info, err := os.Stat(path)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 如果需要创建隐式顶层文件夹，使用路径的基本名称作为前缀
+		if implicitTop {
+			topLevelPrefix = filepath.Base(path)
+			// 如果是目录，添加斜杠
+			if info.IsDir() {
+				topLevelPrefix += "/"
+			}
+		}
+
+		// 处理单个文件的情况
+		if !info.IsDir() {
+			// 构建zip中的文件路径
+			zipPath := filepath.Base(path)
+			if implicitTop {
+				zipPath = topLevelPrefix
+			}
+			// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+			zipPath = filepath.ToSlash(zipPath)
+
+			// 添加单个文件到zip
+			header := &zip.FileHeader{
+				Name:   zipPath,
+				Method: zip.Deflate,
+			}
+			header.SetMode(0644)
+			w, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			// 读取文件内容
+			content, err := os.ReadFile(path)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			// 写入zip
+			_, err = w.Write(content)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			continue
+		}
+
+		// 处理目录的情况
+		err = filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 跳过目录本身
+			if filePath == path {
+				return nil
+			}
+
+			// 计算相对于原始路径的相对路径
+			relPath, err := filepath.Rel(path, filePath)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 构建zip中的文件路径
+			zipPath := relPath
+			if implicitTop {
+				zipPath = filepath.Join(topLevelPrefix, relPath)
+			}
+			// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+			zipPath = filepath.ToSlash(zipPath)
+
+			// 如果是目录，创建目录条目
+			if info.IsDir() {
+				// 使用正斜杠作为目录分隔符，因为zip文件格式使用正斜杠
+				dirPath := zipPath
+				if !strings.HasSuffix(dirPath, "/") {
+					dirPath += "/"
+				}
+				_, err := zipWriter.Create(dirPath)
+				if err != nil && IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 如果是文件，添加到zip
+			header := &zip.FileHeader{
+				Name:   zipPath,
+				Method: zip.Deflate,
+			}
+			header.SetMode(info.Mode())
+			w, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 读取文件内容
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 写入zip
+			_, err = w.Write(content)
+			if err != nil && IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		})
+
+		if err != nil && !IfSwitchExists(options, "-continueOnError") {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// 全局函数定义
+var ZipPathsToFile = TKX.ZipPathsToFile
+
+// AddPathsToZipFile 在已存在的zip文件中添加文件或目录
+// paths: 要添加的文件或目录路径数组
+// zipFilePath: 压缩文件的路径
+// options: 压缩选项，如"-overwrite"表示覆盖已存在的文件，"-implicitTop"表示创建隐式顶层文件夹，"-continueOnError"表示遇到错误继续执行，"-compressionLevel=9"表示设置压缩级别
+// 返回值: 成功返回nil，失败返回错误信息
+func (pA *TK) AddPathsToZipFile(paths []string, zipFilePath string, options ...string) error {
+
+	// 检查zip文件是否存在
+	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("zip file does not exist: %s", zipFilePath)
+	}
+
+	// 读取现有的zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 创建临时文件，使用zip文件所在的目录
+	zipDir := filepath.Dir(zipFilePath)
+	tempFile, err := os.CreateTemp(zipDir, "temp_zip_")
+	if err != nil {
+		return err
+	}
+	tempFilePath := tempFile.Name()
+	defer tempFile.Close()
+	defer os.Remove(tempFilePath)
+
+	// 设置压缩级别
+	compressionLevel := flate.DefaultCompression
+	for _, option := range options {
+		if len(option) > 18 && option[:18] == "-compressionLevel=" {
+			levelStr := option[18:]
+			level := 0
+			for _, c := range levelStr {
+				if c >= '0' && c <= '9' {
+					level = level*10 + int(c-'0')
+				} else {
+					break
+				}
+			}
+			if level >= 0 && level <= 9 {
+				compressionLevel = level
+			}
+		}
+	}
+
+	// 创建zip writer
+	zipWriter := zip.NewWriter(tempFile)
+	defer zipWriter.Close()
+
+	// 注册自定义压缩器以设置压缩级别
+	zipWriter.RegisterCompressor(zip.Deflate, func(w io.Writer) (io.WriteCloser, error) {
+		return flate.NewWriter(w, compressionLevel)
+	})
+
+	// 先将现有文件复制到临时文件
+	for _, f := range r.File {
+		// 检查是否需要覆盖
+		overwrite := IfSwitchExists(options, "-overwrite")
+
+		// 检查文件是否已经存在
+		exists := false
+		for _, path := range paths {
+			info, err := os.Stat(path)
+			if err == nil && !info.IsDir() {
+				if filepath.Base(path) == f.Name {
+					exists = true
+					break
+				}
+			}
+		}
+
+		// 如果文件存在且不需要覆盖，跳过
+		if exists && !overwrite {
+			continue
+		}
+
+		// 复制文件到临时zip
+		header := &zip.FileHeader{
+			Name:   f.Name,
+			Method: f.Method,
+		}
+		header.SetMode(f.Mode())
+		w, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		_, err = io.Copy(w, rc)
+		rc.Close()
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+	}
+
+	// 检查是否需要创建隐式顶层文件夹
+	implicitTop := IfSwitchExists(options, "-implicitTop")
+	topLevelPrefix := ""
+
+	// 处理每个路径
+	for _, path := range paths {
+		// 检查路径是否存在
+		info, err := os.Stat(path)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		// 如果需要创建隐式顶层文件夹，使用路径的基本名称作为前缀
+		if implicitTop {
+			topLevelPrefix = filepath.Base(path)
+			// 如果是目录，添加斜杠
+			if info.IsDir() {
+				topLevelPrefix += "/"
+			}
+		}
+
+		// 处理单个文件的情况
+		if !info.IsDir() {
+			// 构建zip中的文件路径
+			zipPath := filepath.Base(path)
+			if implicitTop {
+				zipPath = topLevelPrefix
+			}
+			// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+			zipPath = filepath.ToSlash(zipPath)
+
+			// 添加单个文件到zip
+			header := &zip.FileHeader{
+				Name:   zipPath,
+				Method: zip.Deflate,
+			}
+			header.SetMode(0644)
+			w, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			// 读取文件内容
+			content, err := os.ReadFile(path)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			// 写入zip
+			_, err = w.Write(content)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					continue
+				}
+				return err
+			}
+
+			continue
+		}
+
+		// 处理目录的情况
+		err = filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 跳过目录本身
+			if filePath == path {
+				return nil
+			}
+
+			// 计算相对于原始路径的相对路径
+			relPath, err := filepath.Rel(path, filePath)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 构建zip中的文件路径
+			zipPath := relPath
+			if implicitTop {
+				zipPath = filepath.Join(topLevelPrefix, relPath)
+			}
+			// 将路径中的反斜杠转换为正斜杠，因为zip文件格式使用正斜杠
+			zipPath = filepath.ToSlash(zipPath)
+
+			// 如果是目录，创建目录条目
+			if info.IsDir() {
+				// 使用正斜杠作为目录分隔符，因为zip文件格式使用正斜杠
+				dirPath := zipPath
+				if !strings.HasSuffix(dirPath, "/") {
+					dirPath += "/"
+				}
+				_, err := zipWriter.Create(dirPath)
+				if err != nil && IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 如果是文件，添加到zip
+			header := &zip.FileHeader{
+				Name:   zipPath,
+				Method: zip.Deflate,
+			}
+			header.SetMode(info.Mode())
+			w, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 读取文件内容
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				if IfSwitchExists(options, "-continueOnError") {
+					return nil
+				}
+				return err
+			}
+
+			// 写入zip
+			_, err = w.Write(content)
+			if err != nil && IfSwitchExists(options, "-continueOnError") {
+				return nil
+			}
+			return err
+		})
+
+		if err != nil && !IfSwitchExists(options, "-continueOnError") {
+			return err
+		}
+	}
+
+	// 关闭zip writer
+	if err := zipWriter.Close(); err != nil {
+		return err
+	}
+
+	// 关闭临时文件
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	// 关闭zip文件读取器
+	r.Close()
+
+	// 替换原有的zip文件
+	return os.Rename(tempFilePath, zipFilePath)
+}
+
+// 全局函数定义
+var AddPathsToZipFile = TKX.AddPathsToZipFile
+
+// RemovePathsInZipFile 从已存在的zip文件中删除文件或目录
+// paths: 要删除的文件或目录路径数组
+// zipFilePath: 压缩文件的路径
+// options: 压缩选项，如"-continueOnError"表示遇到错误继续执行
+// 返回值: 成功返回nil，失败返回错误信息
+func (pA *TK) RemovePathsInZipFile(paths []string, zipFilePath string, options ...string) error {
+
+	// 检查zip文件是否存在
+	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("zip file does not exist: %s", zipFilePath)
+	}
+
+	// 读取现有的zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 创建临时文件，使用zip文件所在的目录
+	zipDir := filepath.Dir(zipFilePath)
+	tempFile, err := os.CreateTemp(zipDir, "temp_zip_")
+	if err != nil {
+		return err
+	}
+	tempFilePath := tempFile.Name()
+	defer tempFile.Close()
+	defer os.Remove(tempFilePath)
+
+	// 创建zip writer
+	zipWriter := zip.NewWriter(tempFile)
+	defer zipWriter.Close()
+
+	// 复制文件到临时zip，跳过要删除的文件
+	for _, f := range r.File {
+		// 检查文件是否需要删除
+		shouldRemove := false
+		for _, path := range paths {
+			if f.Name == path {
+				shouldRemove = true
+				break
+			}
+		}
+
+		// 如果文件需要删除，跳过
+		if shouldRemove {
+			continue
+		}
+
+		// 复制文件到临时zip
+		header := &zip.FileHeader{
+			Name:   f.Name,
+			Method: f.Method,
+		}
+		header.SetMode(f.Mode())
+		w, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+
+		_, err = io.Copy(w, rc)
+		rc.Close()
+		if err != nil {
+			if IfSwitchExists(options, "-continueOnError") {
+				continue
+			}
+			return err
+		}
+	}
+
+	// 关闭zip writer
+	if err := zipWriter.Close(); err != nil {
+		return err
+	}
+
+	// 关闭临时文件
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	// 关闭zip文件读取器
+	r.Close()
+
+	// 替换原有的zip文件
+	return os.Rename(tempFilePath, zipFilePath)
+}
+
+// 全局函数定义
+var RemovePathsInZipFile = TKX.RemovePathsInZipFile
+
+// ListPathsInZipFile 列出zip文件中所有的文件路径
+// zipFilePath: 压缩文件的路径
+// options: 解压选项
+// 返回值: 执行出错返回error对象，否则返回字符串数组
+func (pA *TK) ListPathsInZipFile(zipFilePath string, options ...string) interface{} {
+
+	// 打开zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 收集文件路径
+	var paths []string
+	for _, f := range r.File {
+		paths = append(paths, f.Name)
+	}
+
+	return paths
+}
+
+// 全局函数定义
+var ListPathsInZipFile = TKX.ListPathsInZipFile
+
+// ListPathsInfoInZipFile 列出zip文件中所有的文件信息
+// zipFilePath: 压缩文件的路径
+// options: 解压选项
+// 返回值: 成功返回文件信息数组，失败返回错误信息
+func (pA *TK) ListPathsInfoInZipFile(zipFilePath string, options ...string) ([]*zip.File, error) {
+
+	// 打开zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// 返回文件信息
+	return r.File, nil
+}
+
+// 全局函数定义
+var ListPathsInfoInZipFile = TKX.ListPathsInfoInZipFile
+
+// GetZipFileInfo 获取zip文件的信息
+// zipFilePath: 压缩文件的路径
+// options: 解压选项
+// 返回值: 成功返回map[string]interface{}，失败返回错误信息
+func (pA *TK) GetZipFileInfo(zipFilePath string, options ...string) (map[string]interface{}, error) {
+
+	// 打开zip文件
+	r, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// 计算zip文件信息
+	var compressedSize, uncompressedSize int64
+	fileCount, dirCount := 0, 0
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			dirCount++
+		} else {
+			fileCount++
+			compressedSize += int64(f.CompressedSize64)
+			uncompressedSize += int64(f.UncompressedSize64)
+		}
+	}
+
+	// 计算压缩比
+	var compressionRatio float64
+	if uncompressedSize > 0 {
+		compressionRatio = float64(compressedSize) / float64(uncompressedSize) * 100
+	}
+
+	// 创建信息map
+	info := map[string]interface{}{
+		"compressionRatio": compressionRatio,
+		"compressedSize":   compressedSize,
+		"uncompressedSize": uncompressedSize,
+		"fileCount":        fileCount,
+		"dirCount":         dirCount,
+	}
+
+	return info, nil
+}
+
+// 全局函数定义
+var GetZipFileInfo = TKX.GetZipFileInfo
