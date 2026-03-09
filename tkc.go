@@ -10696,6 +10696,46 @@ func (pA *TK) LoadText(fileNameA string) interface{} {
 
 var LoadText = TKX.LoadText
 
+func (pA *TK) LoadLinesFromFileLimit(fileNameA string, limitA int) string {
+	if !IfFileExists(fileNameA) {
+		return GenerateErrorString("file not exists")
+	}
+
+	fileT, err := os.Open(fileNameA)
+	if err != nil {
+		return GenerateErrorString(err.Error())
+	}
+
+	defer fileT.Close()
+
+	if limitA <= 0 {
+		fileContentT, err := os.ReadFile(fileNameA)
+		if err != nil {
+			return GenerateErrorString(err.Error())
+		}
+		return string(fileContentT)
+	}
+
+	scanner := bufio.NewScanner(fileT)
+	var lines []string
+	lineCount := 0
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+		lineCount++
+		if lineCount >= limitA {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return GenerateErrorString(err.Error())
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+var LoadLinesFromFileLimit = TKX.LoadLinesFromFileLimit
+
 // LoadStringFromFileWithDefault 从文件中读取整个内容到字符串中，出现问题时返回默认字符串
 func (pA *TK) LoadStringFromFileWithDefault(fileNameA string, defaultA string) string {
 	if !IfFileExists(fileNameA) {
@@ -10740,6 +10780,152 @@ func (pA *TK) LoadStringFromFileE(fileNameA string) (string, error) {
 }
 
 var LoadStringFromFileE = TKX.LoadStringFromFileE
+
+func (pA *TK) LoadLinesFromFileLimitE(fileNameA string, limitA int) (string, error) {
+	if !IfFileExists(fileNameA) {
+		return "", fmt.Errorf("file does not exist")
+	}
+
+	fileT, err := os.Open(fileNameA)
+	if err != nil {
+		return "", err
+	}
+
+	defer fileT.Close()
+
+	if limitA == 0 {
+		fileContentT, err := io.ReadAll(fileT)
+		if err != nil {
+			return "", err
+		}
+		return string(fileContentT), nil
+	}
+
+	if limitA > 0 {
+		scanner := bufio.NewScanner(fileT)
+		buf := make([]byte, 0, 1024*1024)
+		scanner.Buffer(buf, 1024*1024*1024)
+		var lines []string
+		lineCount := 0
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+			lineCount++
+			if lineCount >= limitA {
+				break
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			return "", err
+		}
+
+		return strings.Join(lines, "\n"), nil
+	}
+
+	absLimit := -limitA
+	fileInfo, err := fileT.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	fileSize := fileInfo.Size()
+	if fileSize == 0 {
+		return "", nil
+	}
+
+	reader := bufio.NewReader(fileT)
+	var resultLines []string
+
+	for {
+		lineBytes, err := reader.ReadBytes('\n')
+		if err == io.EOF {
+			if len(lineBytes) > 0 {
+				if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\n' {
+					lineBytes = lineBytes[:len(lineBytes)-1]
+				}
+				if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\r' {
+					lineBytes = lineBytes[:len(lineBytes)-1]
+				}
+				resultLines = append(resultLines, string(lineBytes))
+			}
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+
+		if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\n' {
+			lineBytes = lineBytes[:len(lineBytes)-1]
+		}
+		if len(lineBytes) > 0 && lineBytes[len(lineBytes)-1] == '\r' {
+			lineBytes = lineBytes[:len(lineBytes)-1]
+		}
+
+		resultLines = append(resultLines, string(lineBytes))
+
+		if len(resultLines) > absLimit {
+			resultLines = resultLines[len(resultLines)-absLimit:]
+		}
+	}
+
+	return strings.Join(resultLines, "\n"), nil
+}
+
+var LoadLinesFromFileLimitE = TKX.LoadLinesFromFileLimitE
+
+func (pA *TK) LoadBytesFromFileLimitE(fileNameA string, limitA int) ([]byte, error) {
+	if !IfFileExists(fileNameA) {
+		return nil, fmt.Errorf("file does not exist")
+	}
+
+	fileT, err := os.Open(fileNameA)
+	if err != nil {
+		return nil, err
+	}
+
+	defer fileT.Close()
+
+	fileInfo, err := fileT.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	fileSize := fileInfo.Size()
+	if fileSize == 0 {
+		return []byte{}, nil
+	}
+
+	if limitA == 0 {
+		return io.ReadAll(fileT)
+	}
+
+	if limitA > 0 {
+		if int64(limitA) >= fileSize {
+			return io.ReadAll(fileT)
+		}
+		buffer := make([]byte, limitA)
+		n, err := fileT.Read(buffer)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		return buffer[:n], nil
+	}
+
+	absLimit := -limitA
+	if int64(absLimit) >= fileSize {
+		return io.ReadAll(fileT)
+	}
+
+	startPos := fileSize - int64(absLimit)
+	_, err = fileT.Seek(startPos, os.SEEK_SET)
+	if err != nil {
+		return nil, err
+	}
+
+	return io.ReadAll(fileT)
+}
+
+var LoadBytesFromFileLimitE = TKX.LoadBytesFromFileLimitE
 
 func (pA *TK) LoadStringFromFileB(fileNameA string) (string, bool) {
 	if !IfFileExists(fileNameA) {
